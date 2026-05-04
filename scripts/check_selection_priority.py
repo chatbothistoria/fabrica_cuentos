@@ -8,6 +8,7 @@ Qué valida:
    la opción libre tiene prioridad y se usa en el cuento.
 2. Si el campo libre está vacío, se usa la opción del desplegable.
 3. La generación de borrador, secciones, resumen y PDF no falla.
+4. La selección inicial queda vacía para que la interfaz pueda mostrar “Elige una opción...”.
 """
 
 from __future__ import annotations
@@ -42,6 +43,11 @@ def apply_choice(selection: dict[str, str], key: str, selected_option: str, cust
     return selection
 
 
+def default_valid_selection(level_data: dict) -> dict[str, str]:
+    """Crea una selección completa con opciones reales para probar el motor narrativo."""
+    return {step["key"]: step["options"][0] for step in level_data["steps"]}
+
+
 def build_outputs(level_key: str, level_data: dict, selection: dict[str, str]) -> tuple[str, str, list[str]]:
     title = make_title(level_key, selection)
     draft = generate_draft(level_key, selection)
@@ -59,6 +65,18 @@ def main() -> int:
 
     for level_key in LEVEL_FILES:
         level_data = load_level(level_key)
+        initial_selection = empty_selection(level_data)
+        if any(initial_selection.values()):
+            errors.append(
+                {
+                    "level": level_key,
+                    "field": "initial_selection",
+                    "selected_option": "",
+                    "custom_value": "",
+                    "case": "placeholder_initial_state",
+                    "error": "empty_selection debe devolver valores vacíos para mostrar Elige una opción...",
+                }
+            )
         level_custom_cases = 0
         level_default_cases = 0
 
@@ -69,7 +87,7 @@ def main() -> int:
                 # Caso 1: el desplegable tiene una opción y el campo libre también tiene texto.
                 custom_value = f"opcion_libre_{level_key}_{key}_{option_index}"
                 try:
-                    selection = empty_selection(level_data)
+                    selection = default_valid_selection(level_data)
                     apply_choice(selection, key, selected_option, custom_value)
                     assert selection[key] == custom_value
 
@@ -93,7 +111,7 @@ def main() -> int:
 
                 # Caso 2: campo libre vacío. Debe usarse la opción del desplegable.
                 try:
-                    selection = empty_selection(level_data)
+                    selection = default_valid_selection(level_data)
                     apply_choice(selection, key, selected_option, "")
                     assert selection[key] == selected_option
 
@@ -124,7 +142,7 @@ def main() -> int:
         level_data = load_level(level_key)
         for step in level_data["steps"]:
             key = step["key"]
-            selection = empty_selection(level_data)
+            selection = default_valid_selection(level_data)
             selection[key] = f"opcion_libre_pdf_{level_key}_{key}"
             title, final_story, summary = build_outputs(level_key, level_data, selection)
             try:
@@ -143,7 +161,7 @@ def main() -> int:
                     }
                 )
 
-    print("Comprobación de prioridad entre desplegable y campo libre")
+    print("Comprobación de prioridad, campos libres y estado inicial de desplegables")
     print("=" * 64)
     for level_key, fields, custom_cases, default_cases in stats:
         print(f"{level_key}: {fields} campos | {custom_cases} casos con campo libre | {default_cases} casos con campo libre vacío")
@@ -159,7 +177,7 @@ def main() -> int:
             print(error)
         return 1
 
-    print("\nResultado: OK. El campo libre tiene prioridad y no rompe la generación del cuento.")
+    print("\nResultado: OK. El campo libre tiene prioridad, el estado inicial está vacío y no se rompe la generación del cuento.")
     return 0
 
 

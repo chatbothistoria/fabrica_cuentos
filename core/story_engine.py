@@ -38,8 +38,8 @@ def load_level(level_key: str) -> Dict[str, Any]:
 
 
 def empty_selection(level_data: Dict[str, Any]) -> Dict[str, str]:
-    """Devuelve una selección inicial con la primera opción de cada paso."""
-    return {step["key"]: step["options"][0] for step in level_data["steps"]}
+    """Devuelve una selección inicial vacía para que el alumnado elija conscientemente."""
+    return {step["key"]: "" for step in level_data["steps"]}
 
 
 def random_selection(level_data: Dict[str, Any]) -> Dict[str, str]:

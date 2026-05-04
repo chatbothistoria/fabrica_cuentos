@@ -28,7 +28,9 @@
 - Motor narrativo en Python sin IA.
 - Escritura guiada por secciones.
 - Sincronización inmediata del nivel educativo entre el selector central y el panel lateral.
+- Desplegables narrativos con estado inicial **“Elige una opción...”**, sin seleccionar automáticamente la primera opción real.
 - Campos de escritura libre en todas las opciones narrativas para que el alumnado pueda crear sus propias elecciones.
+- Validación antes de generar: si falta una pieza narrativa, la app pide elegirla o escribirla.
 - Banco de palabras y retos de mejora.
 - Guía docente básica.
 - Descarga del cuento en TXT, PDF y JSON.
@@ -106,6 +108,7 @@ En cada pieza narrativa, el alumno puede seleccionar una opción del desplegable
 
 - Si el campo libre tiene texto, se usa el campo libre.
 - Si el campo libre está vacío, se usa la opción del desplegable.
+- Si no se ha elegido nada y el desplegable sigue en “Elige una opción...”, la app no genera el borrador y avisa de qué falta.
 
 Para comprobarlo de forma automática:
 
@@ -113,4 +116,4 @@ Para comprobarlo de forma automática:
 python scripts/check_selection_priority.py
 ```
 
-El script valida todos los niveles y todos los campos narrativos. Comprueba 404 casos con campo libre que sustituye al desplegable, 404 casos con campo libre vacío que usan el desplegable y una prueba de exportación a PDF por cada campo narrativo.
+El script valida todos los niveles y todos los campos narrativos. Comprueba 404 casos con campo libre que sustituye al desplegable, 404 casos con campo libre vacío que usan el desplegable, que la selección inicial queda vacía para mostrar “Elige una opción...”, y una prueba de exportación a PDF por cada campo narrativo.

@@ -21,6 +21,7 @@ from core.story_engine import (
 )
 
 APP_TITLE = "Mi Fábrica de Cuentos"
+SELECT_PLACEHOLDER = "Elige una opción..."
 
 st.set_page_config(
     page_title=APP_TITLE,
@@ -121,7 +122,7 @@ def reset_choice_widget_values(level_key: str, level_data: dict, selection: dict
     for step in level_data["steps"]:
         step_key = step["key"]
         options = step["options"]
-        selected_value = selection.get(step_key, options[0])
+        selected_value = selection.get(step_key, "")
 
         select_widget_key = f"select_{level_key}_{step_key}"
         custom_widget_key = f"custom_{level_key}_{step_key}"
@@ -129,9 +130,12 @@ def reset_choice_widget_values(level_key: str, level_data: dict, selection: dict
         if selected_value in options:
             st.session_state[select_widget_key] = selected_value
             st.session_state[custom_widget_key] = ""
-        else:
-            st.session_state[select_widget_key] = options[0]
+        elif selected_value:
+            st.session_state[select_widget_key] = SELECT_PLACEHOLDER
             st.session_state[custom_widget_key] = selected_value
+        else:
+            st.session_state[select_widget_key] = SELECT_PLACEHOLDER
+            st.session_state[custom_widget_key] = ""
 
 
 def reset_all_choice_widget_values() -> None:
@@ -195,6 +199,16 @@ def ensure_selection(level_data: dict) -> None:
     if not st.session_state.selection or set(st.session_state.selection.keys()) != set(expected_keys):
         st.session_state.selection = empty_selection(level_data)
     st.session_state.setdefault("custom_selection", {})
+
+
+def missing_selection_labels(level_data: dict) -> list[str]:
+    """Devuelve las piezas narrativas que aún no tienen opción elegida ni texto libre."""
+    missing = []
+    for step in level_data["steps"]:
+        value = st.session_state.selection.get(step["key"], "")
+        if not value or value == SELECT_PLACEHOLDER:
+            missing.append(step["label"])
+    return missing
 
 
 def generate_story(level_key: str, level_data: dict) -> None:
@@ -294,21 +308,22 @@ def render_crear_cuento() -> None:
 
     st.subheader("1. Elige las piezas de tu cuento")
     st.caption("Las opciones cambian según la edad y la complejidad narrativa del nivel.")
-    st.info("Cada pieza tiene un campo libre: si el alumno escribe algo ahí, la app usará esa elección personalizada en lugar de la opción del desplegable, aunque haya una opción seleccionada arriba.")
+    st.info("Cada desplegable empieza en “Elige una opción...”. Si el alumno escribe en el campo libre, la app usará esa elección personalizada en lugar de la opción del desplegable.")
 
     columns = st.columns(2)
     for idx, step in enumerate(level_data["steps"]):
         key = step["key"]
         options = step["options"]
-        current = st.session_state.selection.get(key, options[0])
-        current_is_custom = current not in options
-        default_index = options.index(current) if not current_is_custom else 0
+        display_options = [SELECT_PLACEHOLDER] + options
+        current = st.session_state.selection.get(key, "")
+        current_is_custom = bool(current) and current not in options
+        default_index = display_options.index(current) if current in display_options else 0
         saved_custom = st.session_state.custom_selection.get(key, current if current_is_custom else "")
 
         with columns[idx % 2]:
             selected_option = st.selectbox(
                 f"{step['label']} — {step['prompt']}",
-                options=options,
+                options=display_options,
                 index=default_index,
                 key=f"select_{st.session_state.level_key}_{key}",
             )
@@ -323,14 +338,22 @@ def render_crear_cuento() -> None:
                 st.session_state.selection[key] = custom_value
                 st.session_state.custom_selection[key] = custom_value
                 st.caption(f"Se usará tu opción personalizada: **{custom_value}**")
+            elif selected_option == SELECT_PLACEHOLDER:
+                st.session_state.selection[key] = ""
+                st.session_state.custom_selection.pop(key, None)
+                st.caption("Pendiente de elegir o escribir una opción.")
             else:
                 st.session_state.selection[key] = selected_option
                 st.session_state.custom_selection.pop(key, None)
 
     st.subheader("2. Genera el borrador")
     if st.button("✨ Generar borrador de cuento", type="primary", use_container_width=True):
-        generate_story(st.session_state.level_key, level_data)
-        st.success("Borrador generado. Ve a “Escribir y mejorar” para personalizarlo.")
+        missing = missing_selection_labels(level_data)
+        if missing:
+            st.warning("Antes de generar el borrador, elige o escribe una opción en: " + ", ".join(missing) + ".")
+        else:
+            generate_story(st.session_state.level_key, level_data)
+            st.success("Borrador generado. Ve a “Escribir y mejorar” para personalizarlo.")
 
     if st.session_state.draft:
         st.markdown("### Vista rápida del borrador")
