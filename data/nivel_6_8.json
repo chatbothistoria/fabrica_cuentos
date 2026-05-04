@@ -1,0 +1,217 @@
+{
+  "level_key": "nivel_6_8",
+  "level_name": "6-8 años",
+  "age_range": "6-8 años",
+  "subtitle": "Frases guiadas y cuentos breves con inicio, problema y final.",
+  "writing_mode": "Completar frases, usar conectores y escribir pequeños párrafos.",
+  "structure": [
+    "personaje",
+    "lugar",
+    "deseo",
+    "problema",
+    "ayudante",
+    "objeto_especial",
+    "aventura",
+    "solucion",
+    "final"
+  ],
+  "pedagogical_focus": [
+    "Construcción de frases completas.",
+    "Uso de conectores temporales sencillos.",
+    "Comprensión de la estructura del cuento.",
+    "Ampliación de vocabulario con adjetivos y verbos.",
+    "Revisión básica: mayúsculas, punto final y orden de ideas."
+  ],
+  "steps": [
+    {
+      "key": "personaje",
+      "label": "Personaje",
+      "prompt": "¿Quién será el protagonista?",
+      "options": [
+        "Gato detective",
+        "Niña exploradora",
+        "Niño inventor",
+        "Dragón pequeño",
+        "Pirata miedoso",
+        "Robot curioso",
+        "Hada despistada",
+        "Dinosaurio lector",
+        "Perro astronauta",
+        "Bruja buena"
+      ]
+    },
+    {
+      "key": "lugar",
+      "label": "Lugar",
+      "prompt": "¿Dónde vive la aventura?",
+      "options": [
+        "Museo de noche",
+        "Escuela mágica",
+        "Bosque parlante",
+        "Biblioteca infinita",
+        "Planeta azul",
+        "Castillo escondido",
+        "Isla de chocolate",
+        "Ciudad bajo el mar",
+        "Circo espacial",
+        "Casa del árbol"
+      ]
+    },
+    {
+      "key": "deseo",
+      "label": "Deseo",
+      "prompt": "¿Qué quiere conseguir?",
+      "options": [
+        "encontrar un tesoro",
+        "ayudar a un amigo",
+        "aprender magia",
+        "ser más valiente",
+        "descubrir un secreto",
+        "volver a casa",
+        "ganar una carrera divertida",
+        "salvar una fiesta"
+      ]
+    },
+    {
+      "key": "problema",
+      "label": "Problema",
+      "prompt": "¿Qué problema aparece?",
+      "options": [
+        "desaparece una estrella brillante",
+        "alguien roba el mapa",
+        "una puerta no quiere abrirse",
+        "se apagan todos los colores",
+        "un amigo se pierde",
+        "un hechizo sale mal",
+        "empieza una tormenta de pompas",
+        "los libros dejan de hablar"
+      ]
+    },
+    {
+      "key": "ayudante",
+      "label": "Ayudante",
+      "prompt": "¿Quién ayuda?",
+      "options": [
+        "un búho sabio",
+        "una amiga valiente",
+        "un robot simpático",
+        "un abuelo inventor",
+        "una bibliotecaria mágica",
+        "un pez parlante",
+        "una nube risueña",
+        "un compañero de clase"
+      ]
+    },
+    {
+      "key": "objeto_especial",
+      "label": "Objeto especial",
+      "prompt": "¿Qué objeto especial usa?",
+      "options": [
+        "llave dorada",
+        "mapa mágico",
+        "lupa brillante",
+        "mochila encantada",
+        "libro que habla",
+        "gafas para ver pistas",
+        "semilla luminosa",
+        "brújula loca"
+      ]
+    },
+    {
+      "key": "aventura",
+      "label": "Aventura",
+      "prompt": "¿Qué ocurre durante la aventura?",
+      "options": [
+        "siguen unas pistas misteriosas",
+        "cruzan un puente movedizo",
+        "entran en una sala secreta",
+        "resuelven un acertijo",
+        "viajan en una nube",
+        "preguntan a tres personajes",
+        "encuentran una huella gigante",
+        "buscan en un jardín escondido"
+      ]
+    },
+    {
+      "key": "solucion",
+      "label": "Solución",
+      "prompt": "¿Cómo se resuelve?",
+      "options": [
+        "trabajan en equipo",
+        "usan el objeto especial",
+        "piden ayuda con educación",
+        "descubren la pista final",
+        "dicen la verdad",
+        "comparten lo que tienen",
+        "escuchan al personaje triste",
+        "piensan una idea nueva"
+      ]
+    },
+    {
+      "key": "final",
+      "label": "Final",
+      "prompt": "¿Cómo termina?",
+      "options": [
+        "todos celebran una fiesta",
+        "el protagonista vuelve feliz a casa",
+        "aprenden a ayudarse",
+        "el misterio queda resuelto",
+        "nace una nueva amistad",
+        "el lugar recupera sus colores",
+        "prometen vivir otra aventura",
+        "el protagonista se siente valiente"
+      ]
+    }
+  ],
+  "guided_questions": [
+    "¿Cómo se llama tu protagonista?",
+    "¿Qué quería conseguir al principio?",
+    "¿Qué problema apareció?",
+    "¿Quién le ayudó?",
+    "¿Qué objeto fue importante?",
+    "¿Cómo terminó todo?"
+  ],
+  "word_bank": {
+    "Conectores": [
+      "Un día",
+      "Después",
+      "Entonces",
+      "Más tarde",
+      "De repente",
+      "Finalmente"
+    ],
+    "Adjetivos": [
+      "misterioso",
+      "brillante",
+      "divertido",
+      "oscuro",
+      "enorme",
+      "pequeño",
+      "alegre",
+      "valiente"
+    ],
+    "Verbos": [
+      "buscó",
+      "encontró",
+      "preguntó",
+      "ayudó",
+      "descubrió",
+      "corrió",
+      "pensó",
+      "sonrió"
+    ]
+  },
+  "improvement_tasks": [
+    "Añade dos adjetivos a tu cuento.",
+    "Revisa que cada frase empiece con mayúscula.",
+    "Pon punto al final de cada frase.",
+    "Usa al menos tres conectores: “Un día”, “Después” y “Finalmente”.",
+    "Inventa un título más original."
+  ],
+  "teacher_suggestions": [
+    "Trabajar la estructura: inicio, problema, aventura y final.",
+    "Animar a leer el cuento en voz alta para detectar frases incompletas.",
+    "Proponer escritura compartida o por parejas.",
+    "Valorar la creatividad y la revisión, no solo la corrección ortográfica."
+  ]
+}

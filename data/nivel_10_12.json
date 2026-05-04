@@ -1,0 +1,363 @@
+{
+  "level_key": "nivel_10_12",
+  "level_name": "10-12 años",
+  "age_range": "10-12 años",
+  "subtitle": "Tramas completas, conflictos internos, giros y revisión de estilo.",
+  "writing_mode": "Planificar una trama, escribir escenas, revisar y crear versión final.",
+  "structure": [
+    "genero",
+    "tema",
+    "protagonista",
+    "objetivo",
+    "conflicto_externo",
+    "conflicto_interno",
+    "antagonista",
+    "lugar_principal",
+    "lugar_secundario",
+    "detonante",
+    "obstaculo_1",
+    "obstaculo_2",
+    "decision",
+    "giro_narrativo",
+    "climax",
+    "solucion",
+    "aprendizaje",
+    "tipo_final"
+  ],
+  "pedagogical_focus": [
+    "Planificación de tramas más complejas.",
+    "Construcción de conflicto externo e interno.",
+    "Uso de narrador, escenas, diálogos y ritmo narrativo.",
+    "Revisión de coherencia, cohesión y estilo.",
+    "Escritura por capítulos o escenas con borrador y versión final."
+  ],
+  "steps": [
+    {
+      "key": "genero",
+      "label": "Género",
+      "prompt": "¿Qué género tendrá?",
+      "options": [
+        "fantasía",
+        "misterio",
+        "aventura",
+        "ciencia ficción",
+        "realismo con toque mágico",
+        "humor",
+        "suspense suave",
+        "cuento ecológico",
+        "cuento histórico imaginario"
+      ]
+    },
+    {
+      "key": "tema",
+      "label": "Tema",
+      "prompt": "¿Qué tema de fondo trabajará?",
+      "options": [
+        "amistad",
+        "valentía",
+        "identidad",
+        "justicia",
+        "medioambiente",
+        "trabajo en equipo",
+        "superación",
+        "diversidad",
+        "familia",
+        "libertad",
+        "imaginación",
+        "responsabilidad"
+      ]
+    },
+    {
+      "key": "protagonista",
+      "label": "Protagonista",
+      "prompt": "¿Quién llevará el peso de la historia?",
+      "options": [
+        "Vera, una narradora que teme hablar en público",
+        "Izan, un inventor que no termina nada",
+        "Amira, una capitana de equipo muy exigente",
+        "Noa, una lectora que encuentra mensajes ocultos",
+        "Dani, un dibujante que cree que no encaja",
+        "Lía, una guardiana de un bosque olvidado",
+        "Teo, un aprendiz de cronista",
+        "Mara, una detective que duda de sí misma"
+      ]
+    },
+    {
+      "key": "objetivo",
+      "label": "Objetivo",
+      "prompt": "¿Qué quiere conseguir?",
+      "options": [
+        "salvar un lugar importante",
+        "descubrir la verdad antes del anochecer",
+        "reparar un error que afectó a todos",
+        "defender a alguien injustamente acusado",
+        "encontrar una historia perdida",
+        "superar una prueba decisiva",
+        "unir a un grupo dividido",
+        "recuperar un objeto con valor emocional"
+      ]
+    },
+    {
+      "key": "conflicto_externo",
+      "label": "Conflicto externo",
+      "prompt": "¿Qué problema visible ocurre?",
+      "options": [
+        "la biblioteca del pueblo está a punto de cerrar",
+        "una tormenta borra los recuerdos",
+        "desaparece una persona importante",
+        "una norma injusta divide al grupo",
+        "un mapa anuncia un peligro cercano",
+        "los cuentos empiezan a desaparecer",
+        "una máquina cambia la personalidad de la gente",
+        "un bosque enferma sin explicación"
+      ]
+    },
+    {
+      "key": "conflicto_interno",
+      "label": "Conflicto interno",
+      "prompt": "¿Qué conflicto vive por dentro?",
+      "options": [
+        "tiene miedo de equivocarse",
+        "no confía en su propia voz",
+        "quiere hacerlo todo sin ayuda",
+        "le cuesta pedir perdón",
+        "se siente diferente a los demás",
+        "debe elegir entre quedar bien o hacer lo correcto",
+        "teme decepcionar a su familia",
+        "no sabe aceptar que necesita a otros"
+      ]
+    },
+    {
+      "key": "antagonista",
+      "label": "Antagonista o fuerza contraria",
+      "prompt": "¿Qué se opone al protagonista?",
+      "options": [
+        "un rival que oculta sus propios miedos",
+        "el olvido",
+        "el paso del tiempo",
+        "una norma absurda",
+        "una tormenta inteligente",
+        "un malentendido que crece",
+        "un personaje que quiere controlarlo todo",
+        "el silencio de quienes no se atreven a hablar"
+      ]
+    },
+    {
+      "key": "lugar_principal",
+      "label": "Lugar principal",
+      "prompt": "¿Dónde sucede la mayor parte?",
+      "options": [
+        "biblioteca abandonada",
+        "colegio construido sobre un túnel secreto",
+        "pueblo junto a un bosque antiguo",
+        "ciudad donde nadie cuenta historias",
+        "isla que cambia cada noche",
+        "museo de objetos imposibles",
+        "estación de trenes a mundos inventados",
+        "valle cubierto por niebla azul"
+      ]
+    },
+    {
+      "key": "lugar_secundario",
+      "label": "Lugar secundario",
+      "prompt": "¿Qué otro escenario aparecerá?",
+      "options": [
+        "archivo subterráneo",
+        "torre del reloj",
+        "invernadero secreto",
+        "azotea desde la que se ve todo",
+        "sala de mapas prohibidos",
+        "puente sobre un río seco",
+        "teatro vacío",
+        "cueva con paredes escritas"
+      ]
+    },
+    {
+      "key": "detonante",
+      "label": "Detonante",
+      "prompt": "¿Qué pone en marcha la historia?",
+      "options": [
+        "aparece una carta sin firma",
+        "un objeto empieza a hablar",
+        "alguien deja una pista antes de desaparecer",
+        "el protagonista escucha una conversación secreta",
+        "una puerta se abre donde antes había pared",
+        "un libro muestra una página en blanco con su nombre",
+        "un reloj se detiene a la misma hora cada día",
+        "un dibujo cobra vida"
+      ]
+    },
+    {
+      "key": "obstaculo_1",
+      "label": "Primer obstáculo",
+      "prompt": "¿Qué primera dificultad aparece?",
+      "options": [
+        "nadie cree al protagonista",
+        "la primera pista parece falsa",
+        "el grupo discute y se separa",
+        "el camino queda bloqueado",
+        "un personaje importante se niega a ayudar",
+        "un error empeora el problema",
+        "se quedan sin tiempo",
+        "descubren que alguien les sigue"
+      ]
+    },
+    {
+      "key": "obstaculo_2",
+      "label": "Segundo obstáculo",
+      "prompt": "¿Qué complica más la trama?",
+      "options": [
+        "el ayudante oculta información",
+        "el antagonista parece tener razón",
+        "el protagonista pierde el objeto clave",
+        "la solución exige renunciar a algo",
+        "aparece una prueba moral",
+        "todo indica que acusaron a la persona equivocada",
+        "el lugar empieza a desaparecer",
+        "deben confiar en alguien que no les gusta"
+      ]
+    },
+    {
+      "key": "decision",
+      "label": "Decisión importante",
+      "prompt": "¿Qué debe decidir?",
+      "options": [
+        "decir la verdad aunque tenga consecuencias",
+        "pedir ayuda a quien había rechazado",
+        "arriesgarse para salvar a otro",
+        "escuchar antes de actuar",
+        "compartir el mérito con el grupo",
+        "renunciar a su plan inicial",
+        "defender a alguien aunque nadie le apoye",
+        "perdonar para poder avanzar"
+      ]
+    },
+    {
+      "key": "giro_narrativo",
+      "label": "Giro narrativo",
+      "prompt": "¿Qué sorpresa cambia la historia?",
+      "options": [
+        "el supuesto villano intentaba proteger a todos",
+        "la pista más pequeña era la clave",
+        "el objeto buscado no era mágico, sino simbólico",
+        "el protagonista causó parte del problema sin saberlo",
+        "el ayudante era quien necesitaba ayuda",
+        "la solución estaba en contar la historia de otra manera",
+        "el final del cuento estaba escondido al principio",
+        "la fuerza contraria no se derrota, se comprende"
+      ]
+    },
+    {
+      "key": "climax",
+      "label": "Clímax",
+      "prompt": "¿Cuál es el momento más intenso?",
+      "options": [
+        "debe hablar delante de todo el pueblo",
+        "tiene que elegir entre dos caminos",
+        "resuelve el acertijo cuando ya casi no queda tiempo",
+        "se enfrenta a su miedo principal",
+        "el grupo se une para impedir la pérdida definitiva",
+        "el protagonista reconoce su error",
+        "la verdad sale a la luz en el peor momento",
+        "la historia perdida empieza a borrarse"
+      ]
+    },
+    {
+      "key": "solucion",
+      "label": "Solución",
+      "prompt": "¿Cómo se resuelve el conflicto?",
+      "options": [
+        "la verdad une al grupo",
+        "la imaginación transforma el problema",
+        "el protagonista comparte su voz",
+        "todos aceptan cambiar una norma injusta",
+        "recuperan el recuerdo perdido",
+        "reparan el daño con una acción colectiva",
+        "aprenden a escuchar al antagonista",
+        "el cuento se completa con una decisión valiente"
+      ]
+    },
+    {
+      "key": "aprendizaje",
+      "label": "Aprendizaje",
+      "prompt": "¿Qué aprende el protagonista?",
+      "options": [
+        "que pedir ayuda no es rendirse",
+        "que su voz también importa",
+        "que la valentía no significa no tener miedo",
+        "que la verdad puede reparar lo que la mentira rompió",
+        "que una historia cambia según quién la cuenta",
+        "que cuidar un lugar también es cuidar a las personas",
+        "que aceptar diferencias fortalece al grupo",
+        "que equivocarse puede ser el inicio de algo mejor"
+      ]
+    },
+    {
+      "key": "tipo_final",
+      "label": "Tipo de final",
+      "prompt": "¿Qué tipo de cierre tendrá?",
+      "options": [
+        "feliz",
+        "sorpresivo",
+        "abierto",
+        "con moraleja",
+        "emotivo",
+        "circular: termina como empezó",
+        "con pregunta final",
+        "con promesa de continuación"
+      ]
+    }
+  ],
+  "guided_questions": [
+    "¿Qué narrador usarás: primera o tercera persona?",
+    "¿Cuál es el conflicto externo y cuál es el interno?",
+    "¿Qué decisión cambia al protagonista?",
+    "¿Dónde colocarás el giro narrativo?",
+    "¿Qué escena será el clímax?",
+    "¿Qué revisarás en la versión final?"
+  ],
+  "word_bank": {
+    "Conectores de trama": [
+      "Al principio",
+      "No obstante",
+      "A medida que",
+      "Mientras tanto",
+      "En consecuencia",
+      "Por primera vez",
+      "En el momento decisivo",
+      "Desde entonces"
+    ],
+    "Recursos literarios sencillos": [
+      "comparación",
+      "metáfora sencilla",
+      "personificación",
+      "repetición intencionada",
+      "pregunta retórica",
+      "símbolo"
+    ],
+    "Verbos de pensamiento": [
+      "recordó",
+      "comprendió",
+      "dudó",
+      "sospechó",
+      "imaginó",
+      "decidió",
+      "reconoció",
+      "aceptó"
+    ]
+  },
+  "improvement_tasks": [
+    "Separa tu cuento en escenas o capítulos breves.",
+    "Comprueba que el conflicto interno se nota en las decisiones del protagonista.",
+    "Añade un giro que no contradiga las pistas anteriores.",
+    "Revisa diálogos, signos de puntuación y cambios de hablante.",
+    "Crea una versión final mejorada a partir del borrador.",
+    "Prueba un final alternativo: abierto, circular o sorprendente."
+  ],
+  "teacher_suggestions": [
+    "Trabajar planificación, borrador, revisión y versión final.",
+    "Diferenciar objetivo, conflicto externo y conflicto interno.",
+    "Usar rúbricas sencillas de coherencia, creatividad y revisión.",
+    "Proponer lectura entre iguales con comentarios concretos y respetuosos."
+  ]
+}

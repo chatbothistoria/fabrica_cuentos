@@ -1,0 +1,325 @@
+{
+  "level_key": "nivel_8_10",
+  "level_name": "8-10 años",
+  "age_range": "8-10 años",
+  "subtitle": "Párrafos, diálogos, emociones y personajes con rasgos.",
+  "writing_mode": "Planificar, escribir por párrafos, añadir diálogos y revisar.",
+  "structure": [
+    "genero",
+    "protagonista",
+    "rasgo",
+    "lugar",
+    "situacion_inicial",
+    "deseo",
+    "problema",
+    "causa",
+    "ayudante",
+    "objeto_pista",
+    "aventura_1",
+    "aventura_2",
+    "dialogo",
+    "solucion",
+    "cambio_personaje",
+    "final"
+  ],
+  "pedagogical_focus": [
+    "Planificación previa del texto.",
+    "Escritura de párrafos con coherencia.",
+    "Uso de diálogos y verbos de habla.",
+    "Desarrollo de emociones y cambios del personaje.",
+    "Revisión de repeticiones, conectores y descripciones."
+  ],
+  "steps": [
+    {
+      "key": "genero",
+      "label": "Género",
+      "prompt": "¿Qué tipo de cuento será?",
+      "options": [
+        "aventura",
+        "misterio",
+        "fantasía",
+        "humor",
+        "ciencia ficción",
+        "animales",
+        "cuento emocional",
+        "miedo suave",
+        "cuento con moraleja"
+      ]
+    },
+    {
+      "key": "protagonista",
+      "label": "Protagonista",
+      "prompt": "¿Quién protagoniza la historia?",
+      "options": [
+        "Leo, un niño curioso",
+        "Nora, una inventora joven",
+        "Vera, una exploradora tímida",
+        "Sira, una dragona lectora",
+        "Tomás, un detective despistado",
+        "Luna, una astronauta creativa",
+        "Max, un mago aprendiz",
+        "Iria, una protectora del bosque"
+      ]
+    },
+    {
+      "key": "rasgo",
+      "label": "Rasgo del protagonista",
+      "prompt": "¿Cómo es al principio?",
+      "options": [
+        "valiente pero impaciente",
+        "curiosa y observadora",
+        "tímida pero imaginativa",
+        "generosa aunque algo despistada",
+        "miedosa pero muy inteligente",
+        "testaruda y divertida",
+        "creativa pero insegura",
+        "responsable y silenciosa"
+      ]
+    },
+    {
+      "key": "lugar",
+      "label": "Lugar principal",
+      "prompt": "¿Dónde empieza?",
+      "options": [
+        "biblioteca antigua",
+        "escuela junto al bosque",
+        "pueblo con relojes gigantes",
+        "museo de los secretos",
+        "isla flotante",
+        "laboratorio de inventos",
+        "jardín que cambia de forma",
+        "tren que viaja por las nubes"
+      ]
+    },
+    {
+      "key": "situacion_inicial",
+      "label": "Situación inicial",
+      "prompt": "¿Qué ocurre al principio?",
+      "options": [
+        "todo parecía tranquilo",
+        "nadie creía en la magia",
+        "era el primer día de clase",
+        "el pueblo preparaba una fiesta",
+        "el protagonista acababa de mudarse",
+        "apareció una nota misteriosa",
+        "llovían pequeñas luces",
+        "un libro se abrió solo"
+      ]
+    },
+    {
+      "key": "deseo",
+      "label": "Deseo u objetivo",
+      "prompt": "¿Qué quiere conseguir?",
+      "options": [
+        "resolver su primer misterio",
+        "proteger su lugar favorito",
+        "encontrar a alguien perdido",
+        "demostrar que puede hacerlo",
+        "salvar una celebración",
+        "descubrir la verdad",
+        "arreglar un error",
+        "superar un miedo"
+      ]
+    },
+    {
+      "key": "problema",
+      "label": "Problema",
+      "prompt": "¿Qué conflicto aparece?",
+      "options": [
+        "desaparece el objeto más importante",
+        "un hechizo confunde a todos",
+        "nadie recuerda el final de los cuentos",
+        "el lugar empieza a perder colores",
+        "un personaje miente para ocultar algo",
+        "se abre una puerta prohibida",
+        "un mensaje anuncia un peligro",
+        "alguien culpa al protagonista injustamente"
+      ]
+    },
+    {
+      "key": "causa",
+      "label": "Causa del problema",
+      "prompt": "¿Por qué ocurre?",
+      "options": [
+        "un malentendido",
+        "un descuido",
+        "un hechizo incompleto",
+        "una mentira pequeña que creció",
+        "una tormenta extraña",
+        "un personaje egoísta",
+        "una puerta abierta por error",
+        "un objeto usado sin pensar"
+      ]
+    },
+    {
+      "key": "ayudante",
+      "label": "Ayudante",
+      "prompt": "¿Quién acompaña?",
+      "options": [
+        "una amiga que hace preguntas inteligentes",
+        "un animal que habla en rimas",
+        "un bibliotecario misterioso",
+        "un robot con memoria rota",
+        "una abuela aventurera",
+        "un compañero que siempre dibuja mapas",
+        "un fantasma amable",
+        "una nube que cambia de humor"
+      ]
+    },
+    {
+      "key": "objeto_pista",
+      "label": "Objeto o pista",
+      "prompt": "¿Qué les ayuda?",
+      "options": [
+        "linterna azul",
+        "mapa invisible",
+        "cuaderno de pistas",
+        "llave con forma de estrella",
+        "pluma que escribe sola",
+        "brújula de emociones",
+        "fotografía antigua",
+        "semilla de luz"
+      ]
+    },
+    {
+      "key": "aventura_1",
+      "label": "Primera aventura",
+      "prompt": "¿Qué primer obstáculo superan?",
+      "options": [
+        "siguen un rastro de huellas brillantes",
+        "resuelven un acertijo escrito en la pared",
+        "cruzan una sala que cambia de tamaño",
+        "preguntan a tres testigos muy raros",
+        "encuentran una pista escondida en una canción",
+        "escapan de una lluvia de papeles",
+        "descubren un pasadizo secreto",
+        "interpretan un mapa difícil"
+      ]
+    },
+    {
+      "key": "aventura_2",
+      "label": "Segunda aventura",
+      "prompt": "¿Qué ocurre después?",
+      "options": [
+        "el ayudante se equivoca y deben improvisar",
+        "aparece un personaje que no dice toda la verdad",
+        "el objeto especial deja de funcionar",
+        "el protagonista debe tomar una decisión difícil",
+        "encuentran una pista contradictoria",
+        "descubren que el problema era más grande",
+        "tienen que trabajar con un rival",
+        "el tiempo empieza a agotarse"
+      ]
+    },
+    {
+      "key": "dialogo",
+      "label": "Diálogo importante",
+      "prompt": "¿Qué frase se dice?",
+      "options": [
+        "“No podemos rendirnos ahora.”",
+        "“Mira bien: la pista estaba delante de nosotros.”",
+        "“A veces pedir ayuda también es ser valiente.”",
+        "“Lo siento, no quería causar este problema.”",
+        "“Si trabajamos juntos, encontraremos la solución.”",
+        "“Tengo miedo, pero voy a intentarlo.”"
+      ]
+    },
+    {
+      "key": "solucion",
+      "label": "Solución",
+      "prompt": "¿Cómo se resuelve?",
+      "options": [
+        "unen todas las pistas",
+        "dicen la verdad en voz alta",
+        "usan el objeto con imaginación",
+        "escuchan al personaje que parecía enemigo",
+        "reparan el daño trabajando en equipo",
+        "descubren el significado de la nota",
+        "transforman el error en una oportunidad",
+        "se atreven a hacer lo correcto"
+      ]
+    },
+    {
+      "key": "cambio_personaje",
+      "label": "Cambio del personaje",
+      "prompt": "¿Qué aprende?",
+      "options": [
+        "a pedir ayuda",
+        "a escuchar antes de juzgar",
+        "a confiar en sí mismo",
+        "a ser paciente",
+        "a decir la verdad",
+        "a compartir sus ideas",
+        "a superar un miedo",
+        "a cuidar de los demás"
+      ]
+    },
+    {
+      "key": "final",
+      "label": "Final",
+      "prompt": "¿Cómo termina?",
+      "options": [
+        "todo vuelve a la calma, pero aparece una nueva pista",
+        "celebran lo aprendido con una fiesta",
+        "el protagonista recibe una carta misteriosa",
+        "el lugar recupera sus colores",
+        "el antiguo rival se convierte en amigo",
+        "el cuento termina con una pregunta",
+        "prometen guardar el secreto",
+        "descubren que habrá otra aventura"
+      ]
+    }
+  ],
+  "guided_questions": [
+    "Describe el lugar con tres detalles concretos.",
+    "Explica cómo se siente el protagonista al principio.",
+    "Escribe un diálogo entre dos personajes.",
+    "Añade una segunda dificultad antes de la solución.",
+    "Cuenta qué aprende el protagonista al final."
+  ],
+  "word_bank": {
+    "Conectores": [
+      "Al principio",
+      "Sin embargo",
+      "De pronto",
+      "Mientras tanto",
+      "Por eso",
+      "Aunque",
+      "Finalmente",
+      "Desde aquel día"
+    ],
+    "Verbos de habla": [
+      "dijo",
+      "preguntó",
+      "susurró",
+      "respondió",
+      "gritó",
+      "añadió",
+      "exclamó",
+      "murmuró"
+    ],
+    "Descripciones": [
+      "silencioso",
+      "enorme",
+      "antiguo",
+      "luminoso",
+      "inquietante",
+      "acogedor",
+      "secreto",
+      "extraordinario"
+    ]
+  },
+  "improvement_tasks": [
+    "Añade una descripción del lugar con al menos tres detalles.",
+    "Incluye un diálogo usando raya o comillas.",
+    "Marca qué emoción siente el protagonista en el problema.",
+    "Revisa si repites muchas veces la misma palabra.",
+    "Comprueba que el final resuelve el problema principal."
+  ],
+  "teacher_suggestions": [
+    "Pedir un borrador y una versión final.",
+    "Trabajar la diferencia entre problema, causa y solución.",
+    "Usar lectura entre iguales para valorar si la historia se entiende.",
+    "Proponer retos de vocabulario y conectores."
+  ]
+}
