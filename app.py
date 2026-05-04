@@ -85,7 +85,10 @@ def cached_level(level_key: str) -> dict:
 
 def init_state() -> None:
     defaults = {
-        "level_key": "infantil",
+        # La app arranca sin nivel elegido para que todos los desplegables
+        # comiencen realmente en “Elige una opción...”.
+        "level_key": "",
+        "central_level_selector": SELECT_PLACEHOLDER,
         "selection": {},
         "custom_selection": {},
         "story_title": "",
@@ -145,23 +148,36 @@ def reset_all_choice_widget_values() -> None:
 
 
 def set_level(level_key: str) -> None:
+    """Establece el nivel activo y reinicia las elecciones narrativas.
+
+    Si level_key está vacío, la app queda en estado inicial: ningún nivel
+    elegido y todos los desplegables pendientes en “Elige una opción...”.
+    """
     if st.session_state.level_key != level_key:
         st.session_state.level_key = level_key
-        level_data = cached_level(level_key)
         reset_all_choice_widget_values()
-        clear_creation_state(level_data)
+        if level_key:
+            level_data = cached_level(level_key)
+            clear_creation_state(level_data)
+        else:
+            clear_creation_state(None)
 
 
 def on_central_level_change() -> None:
     """Sincroniza inmediatamente el selector central con el nivel activo del panel lateral."""
     selected_label = st.session_state.central_level_selector
+    if selected_label == SELECT_PLACEHOLDER:
+        set_level("")
+        return
     labels = list(LEVEL_LABELS.values())
     keys = list(LEVEL_LABELS.keys())
     selected_key = keys[labels.index(selected_label)]
     set_level(selected_key)
 
 
-def current_level_data() -> dict:
+def current_level_data() -> dict | None:
+    if not st.session_state.level_key:
+        return None
     return cached_level(st.session_state.level_key)
 
 
@@ -258,23 +274,28 @@ def render_inicio() -> None:
 def render_crear_cuento() -> None:
     st.header("🪄 Crear cuento")
     level_keys = list(LEVEL_LABELS.keys())
-    level_labels = list(LEVEL_LABELS.values())
-    current_label = LEVEL_LABELS[st.session_state.level_key]
+    level_labels = [SELECT_PLACEHOLDER] + list(LEVEL_LABELS.values())
+    current_label = LEVEL_LABELS.get(st.session_state.level_key, SELECT_PLACEHOLDER)
 
     # El callback se ejecuta antes de redibujar la app. Así el panel lateral
-    # muestra el nuevo nivel en la misma interacción del usuario.
+    # muestra el nuevo nivel en la misma interacción del usuario. En una sesión
+    # nueva, el selector central queda en “Elige una opción...”.
     if st.session_state.get("central_level_selector") != current_label:
         st.session_state.central_level_selector = current_label
 
     st.selectbox(
         "Elige nivel educativo",
         options=level_labels,
-        index=level_keys.index(st.session_state.level_key),
+        index=level_labels.index(current_label),
         key="central_level_selector",
         on_change=on_central_level_change,
     )
 
     level_data = current_level_data()
+    if level_data is None:
+        st.info("Para empezar, elige un nivel educativo. Después aparecerán las piezas del cuento, todas iniciadas en “Elige una opción...”.")
+        return
+
     ensure_selection(level_data)
 
     render_level_summary(level_data)
@@ -364,6 +385,10 @@ def render_taller() -> None:
     st.header("📚 Escribir y mejorar")
     level_data = current_level_data()
 
+    if level_data is None:
+        st.warning("Primero elige un nivel educativo en la sección “Crear cuento”.")
+        return
+
     if not st.session_state.draft:
         st.warning("Primero genera un borrador en la sección “Crear cuento”.")
         return
@@ -421,6 +446,10 @@ def render_taller() -> None:
 def render_cuento_final() -> None:
     st.header("🎨 Cuento final")
     level_data = current_level_data()
+
+    if level_data is None:
+        st.warning("Primero elige un nivel educativo y crea un cuento.")
+        return
 
     if not st.session_state.final_story:
         st.warning("Todavía no hay cuento final. Genera un borrador y edítalo en el taller.")
@@ -498,6 +527,10 @@ def render_guia_docente() -> None:
     )
 
     level_data = current_level_data()
+    if level_data is None:
+        st.info("Elige un nivel educativo en “Crear cuento” para ver las sugerencias docentes adaptadas.")
+        return
+
     render_level_summary(level_data)
 
     st.subheader("Sugerencias para este nivel")
@@ -554,7 +587,7 @@ with st.sidebar:
     )
     st.divider()
     st.caption("Nivel activo")
-    active_level = LEVEL_LABELS.get(st.session_state.level_key, "Infantil")
+    active_level = LEVEL_LABELS.get(st.session_state.level_key, SELECT_PLACEHOLDER)
     st.write(f"**{active_level}**")
     if st.session_state.story_title:
         st.caption("Cuento activo")

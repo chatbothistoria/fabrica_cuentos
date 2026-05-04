@@ -28,7 +28,8 @@
 - Motor narrativo en Python sin IA.
 - Escritura guiada por secciones.
 - Sincronización inmediata del nivel educativo entre el selector central y el panel lateral.
-- Desplegables narrativos con estado inicial **“Elige una opción...”**, sin seleccionar automáticamente la primera opción real.
+- La app se abre sin nivel preseleccionado: el selector de nivel arranca en **“Elige una opción...”**.
+- Todos los desplegables narrativos arrancan en **“Elige una opción...”**, sin seleccionar automáticamente la primera opción real.
 - Campos de escritura libre en todas las opciones narrativas para que el alumnado pueda crear sus propias elecciones.
 - Validación antes de generar: si falta una pieza narrativa, la app pide elegirla o escribirla.
 - Banco de palabras y retos de mejora.
@@ -54,6 +55,8 @@ mi-fabrica-de-cuentos/
 │   └── pdf_exporter.py
 ├── assets/
 │   └── README.md
+├── scripts/
+│   └── check_selection_priority.py
 └── .streamlit/
     └── config.toml
 ```
@@ -103,6 +106,8 @@ Esta versión no crea usuarios ni guarda datos en una base de datos. Los cuentos
 - Exportar libros colectivos de aula.
 
 ## Comprobación de prioridad del campo libre
+
+La app arranca con el selector de nivel en “Elige una opción...”. Al escoger un nivel, todas las piezas narrativas de ese nivel aparecen también en “Elige una opción...”.
 
 En cada pieza narrativa, el alumno puede seleccionar una opción del desplegable y también escribir una opción propia. La regla es:
 
