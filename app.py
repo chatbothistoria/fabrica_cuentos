@@ -294,7 +294,7 @@ def render_crear_cuento() -> None:
 
     st.subheader("1. Elige las piezas de tu cuento")
     st.caption("Las opciones cambian según la edad y la complejidad narrativa del nivel.")
-    st.info("Cada pieza tiene un campo libre: si el alumno escribe algo ahí, la app usará esa elección personalizada en lugar de la opción del desplegable.")
+    st.info("Cada pieza tiene un campo libre: si el alumno escribe algo ahí, la app usará esa elección personalizada en lugar de la opción del desplegable, aunque haya una opción seleccionada arriba.")
 
     columns = st.columns(2)
     for idx, step in enumerate(level_data["steps"]):
@@ -315,7 +315,7 @@ def render_crear_cuento() -> None:
             custom_value = st.text_input(
                 f"✍️ O escribe tu propia opción de {step['label'].lower()}",
                 value=saved_custom,
-                placeholder="Déjalo vacío para usar la opción elegida arriba.",
+                placeholder="Si escribes aquí, sustituye a la opción elegida arriba.",
                 key=f"custom_{st.session_state.level_key}_{key}",
             ).strip()
 

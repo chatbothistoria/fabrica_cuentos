@@ -99,3 +99,18 @@ Esta versión no crea usuarios ni guarda datos en una base de datos. Los cuentos
 - Añadir grabación de voz para Infantil.
 - Añadir IA como ayudante pedagógico para títulos, vocabulario, preguntas y revisión.
 - Exportar libros colectivos de aula.
+
+## Comprobación de prioridad del campo libre
+
+En cada pieza narrativa, el alumno puede seleccionar una opción del desplegable y también escribir una opción propia. La regla es:
+
+- Si el campo libre tiene texto, se usa el campo libre.
+- Si el campo libre está vacío, se usa la opción del desplegable.
+
+Para comprobarlo de forma automática:
+
+```bash
+python scripts/check_selection_priority.py
+```
+
+El script valida todos los niveles y todos los campos narrativos. Comprueba 404 casos con campo libre que sustituye al desplegable, 404 casos con campo libre vacío que usan el desplegable y una prueba de exportación a PDF por cada campo narrativo.
