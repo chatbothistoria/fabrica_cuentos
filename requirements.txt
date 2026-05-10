@@ -1,6 +1,0 @@
-streamlit
-sentence-transformers
-supabase
-numpy
-groq
-reportlab
