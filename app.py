@@ -27,7 +27,7 @@ bloque = st.sidebar.selectbox("Bloque:", ["general", "infantil_primaria", "secun
 query = st.text_input("Escribe tu duda aquí:")
 
 if query:
-    with st.spinner("Analizando la normativa al pie de la letra..."):
+    with st.spinner("Analizando la normativa y redactando..."):
         query_embedding = model.encode(query).tolist()
 
         try:
@@ -37,15 +37,21 @@ if query:
                 {
                     "query_embedding": query_embedding,
                     "query_text": query,
-                    "match_threshold": 0.25, # PUNTO DE EQUILIBRIO: Ni muy estricto ni muy laxo
-                    "match_count": 20,       # Le damos 20 fragmentos para que tenga lectura de sobra
+                    "match_threshold": 0.25, 
+                    "match_count": 12, # AJUSTADO: 12 fragmentos para no saturar el límite de Groq (6000 tokens)
                     "filter_bloque": bloque,
                 }
             ).execute()
 
             if res.data:
+                # Unimos los textos
                 contexto = "\n".join([item['contenido'] for item in res.data])
                 
+                # CORTAFUEGOS DE SEGURIDAD: Máximo 16.000 caracteres (~4000 tokens)
+                # Así nos aseguramos de que NUNCA vuelva a dar el error 413 de límite excedido.
+                if len(contexto) > 16000:
+                    contexto = contexto[:16000] 
+
                 # --- 5. SOLICITUD A GROQ (EL REDACTOR ESTRICTO) ---
                 prompt_sistema = """Eres un estricto consultor legal en normativa educativa.
                 Tu ÚNICA labor es responder a la pregunta del usuario basándote EXCLUSIVAMENTE en el CONTEXTO proporcionado.
@@ -64,7 +70,7 @@ if query:
                         {"role": "user", "content": prompt_usuario}
                     ],
                     model="llama-3.1-8b-instant",
-                    temperature=0.0, # TEMPERATURA A CERO: Cero creatividad, máxima fidelidad a los textos.
+                    temperature=0.0, # Temperatura 0.0 para evitar alucinaciones
                 )
 
                 # --- 6. RESULTADO FINAL ---
