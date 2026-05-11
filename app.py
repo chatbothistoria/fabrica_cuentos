@@ -23,11 +23,12 @@ def load_model():
 model = load_model()
 
 # --- 4. INTERFAZ ---
-bloque = st.sidebar.selectbox("Bloque:", ["general", "infantil_primaria", "secundaria_bachillerato", "fp"])
+bloque = st.sidebar.selectbox("Selecciona el bloque:", ["general", "infantil_primaria", "secundaria_bachillerato", "fp"])
 query = st.text_input("Escribe tu duda aquí:")
 
 if query:
-    with st.spinner("Analizando la normativa y redactando..."):
+    with st.spinner("Buscando en los documentos oficiales..."):
+        # Usamos la frase entera para el vector (entiende mejor el contexto)
         query_embedding = model.encode(query).tolist()
 
         try:
@@ -36,31 +37,30 @@ if query:
                 "match_normativa_educativa",
                 {
                     "query_embedding": query_embedding,
-                    "query_text": query,
-                    "match_threshold": 0.25, 
-                    "match_count": 12, # AJUSTADO: 12 fragmentos para no saturar el límite de Groq (6000 tokens)
+                    "query_text": query, 
+                    "match_threshold": 0.15, # Filtro suave para que atrape la información
+                    "match_count": 15,       # Subimos a 15 (límite seguro para Groq)
                     "filter_bloque": bloque,
                 }
             ).execute()
 
-            if res.data:
-                # Unimos los textos
-                contexto = "\n".join([item['contenido'] for item in res.data])
+            if res.data and len(res.data) > 0:
+                contexto = "\n\n".join([item['contenido'] for item in res.data])
                 
-                # CORTAFUEGOS DE SEGURIDAD: Máximo 16.000 caracteres (~4000 tokens)
-                # Así nos aseguramos de que NUNCA vuelva a dar el error 413 de límite excedido.
-                if len(contexto) > 16000:
-                    contexto = contexto[:16000] 
+                # Cortafuegos de seguridad
+                if len(contexto) > 15000:
+                    contexto = contexto[:15000]
 
-                # --- 5. SOLICITUD A GROQ (EL REDACTOR ESTRICTO) ---
-                prompt_sistema = """Eres un estricto consultor legal en normativa educativa.
-                Tu ÚNICA labor es responder a la pregunta del usuario basándote EXCLUSIVAMENTE en el CONTEXTO proporcionado.
+                # --- 5. SOLICITUD A GROQ ---
+                # Hemos relajado un pelín la orden para que sepa interpretar sinónimos ("Corresponde a la tutoría" = "Funciones del tutor")
+                prompt_sistema = """Eres un consultor legal experto en normativa educativa.
+                Tu labor es responder a la pregunta del usuario basándote EXCLUSIVAMENTE en el CONTEXTO proporcionado.
                 
-                REGLAS INQUEBRANTABLES:
-                1. Redacta la respuesta en formato de párrafo (o varios si es necesario), de forma fluida. No uses listas numeradas.
-                2. NUNCA inventes, asumas o deduzcas información. Tu conocimiento externo está apagado. Todo dato debe provenir del CONTEXTO.
-                3. Si el CONTEXTO proporcionado no contiene la información explícita para responder a la pregunta, DEBES detenerte y responder EXACTAMENTE esto: "La normativa referenciada no contiene información explícita para responder a esta pregunta."
-                4. No uses frases de relleno como "Según el contexto proporcionado". Responde directamente."""
+                REGLAS:
+                1. Redacta la respuesta en formato de párrafo fluido, sintetizando la información.
+                2. Si la información está en el contexto pero expresada con otras palabras (ej. "tareas", "corresponde a..."), dedúcelo y úsalo.
+                3. NUNCA inventes datos externos. Si tras leer bien el contexto NO hay mención al tema, responde: "La normativa referenciada no contiene información explícita sobre este tema."
+                4. Responde directamente sin decir "Según el contexto". """
 
                 prompt_usuario = f"CONTEXTO OBLIGATORIO:\n{contexto}\n\nPREGUNTA: {query}"
 
@@ -70,18 +70,28 @@ if query:
                         {"role": "user", "content": prompt_usuario}
                     ],
                     model="llama-3.1-8b-instant",
-                    temperature=0.0, # Temperatura 0.0 para evitar alucinaciones
+                    temperature=0.0, 
                 )
 
                 # --- 6. RESULTADO FINAL ---
-                st.markdown(respuesta_ia.choices[0].message.content)
+                st.markdown("### Respuesta oficial:")
+                st.write(respuesta_ia.choices[0].message.content)
                 
-                with st.expander("Ver fuentes oficiales consultadas"):
+                # --- HERRAMIENTAS DE DIAGNÓSTICO ---
+                st.divider()
+                st.caption("Herramientas de verificación")
+                
+                with st.expander("🔍 Verificar páginas encontradas"):
                     fuentes = set([f"{i['nombre_archivo']} (Pág {i['pagina_num']})" for i in res.data])
                     for f in fuentes:
                         st.write(f"- {f}")
+                
+                with st.expander("🛠️ Modo Diagnóstico: Ver texto crudo (Lo que lee la IA)"):
+                    st.warning("Esto es exactamente lo que la base de datos le ha pasado a la IA para que lea:")
+                    st.write(contexto)
+
             else:
-                st.warning("La búsqueda inicial no ha encontrado ningún artículo o fragmento relacionado con esas palabras.")
+                st.warning(f"La búsqueda en la base de datos ha devuelto 0 resultados para el bloque '{bloque}'.")
 
         except Exception as e:
             st.error(f"Error técnico: {e}")
