@@ -1,97 +1,73 @@
 import streamlit as st
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
-from groq import Groq
 
-# --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="Asistente de Normativa", page_icon="⚖️")
-st.title("⚖️ Asistente de Normativa Educativa")
+# --- 1. CONFIGURACIÓN DE LA PÁGINA ---
+st.set_page_config(page_title="Buscador de Normativa Educativa", page_icon="📚")
 
-# --- 2. CONEXIÓN ---
-url = st.secrets["SUPABASE_URL"]
-key = st.secrets["SUPABASE_KEY"]
-groq_api_key = st.secrets["GROQ_API_KEY"]
+# --- 2. CONEXIÓN A SUPABASE ---
+# Tus claves de conexión
+SUPABASE_URL = "https://dwclbwmdybdlxehvkhtz.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y2xid21keWJkbHhlaHZraHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0Mzc4MzUsImV4cCI6MjA5NDAxMzgzNX0.37vb-v1ByPiyLB94GVUaJwxu0wfropa4Xpx3lQJ-oFY"
 
-supabase = create_client(url, key)
-groq_client = Groq(api_key=groq_api_key)
+@st.cache_resource
+def init_supabase():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- 3. MODELO DE BÚSQUEDA ---
+supabase = init_supabase()
+
+# --- 3. CARGAR EL MOTOR DE IA (EMBEDDINGS) ---
 @st.cache_resource
 def load_model():
-    return SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
+    return SentenceTransformer("paraphrase-multilingual-mpnet-base-v2")
 
 model = load_model()
 
-# --- 4. INTERFAZ ---
-bloque = st.sidebar.selectbox("Selecciona el bloque:", ["general", "infantil_primaria", "secundaria_bachillerato", "fp"])
-query = st.text_input("Escribe tu duda aquí:")
+# --- 4. INTERFAZ WEB ---
+st.title("📚 Buscador Inteligente de Normativa Educativa")
+st.write("Selecciona el nivel educativo y haz tu pregunta para encontrar la ley exacta.")
 
-if query:
-    with st.spinner("Buscando en los documentos oficiales..."):
-        # Usamos la frase entera para el vector (entiende mejor el contexto)
-        query_embedding = model.encode(query).tolist()
+# El nuevo menú desplegable para elegir el bloque
+bloque_elegido = st.selectbox(
+    "Nivel educativo:",
+    ["fp", "infantil_primaria", "secundaria_bachillerato"],
+    format_func=lambda x: {
+        "fp": "Formación Profesional",
+        "infantil_primaria": "Infantil y Primaria",
+        "secundaria_bachillerato": "Secundaria y Bachillerato"
+    }[x]
+)
 
+pregunta = st.text_input("Haz tu pregunta sobre la normativa:")
+
+if st.button("Buscar") and pregunta:
+    with st.spinner("Buscando en las leyes de este bloque..."):
         try:
-            # BUSCAMOS EN SUPABASE
-            res = supabase.rpc(
-                "match_normativa_educativa",
+            # 1. Convertimos la pregunta del usuario a números
+            embedding_pregunta = model.encode(pregunta).tolist()
+
+            # 2. Buscamos en Supabase pasando el bloque elegido como filtro
+            respuesta = supabase.rpc(
+                "buscar_normativa", 
                 {
-                    "query_embedding": query_embedding,
-                    "query_text": query, 
-                    "match_threshold": 0.15, # Filtro suave para que atrape la información
-                    "match_count": 15,       # Subimos a 15 (límite seguro para Groq)
-                    "filter_bloque": bloque,
+                    "query_embedding": embedding_pregunta, 
+                    "filtro_bloque": bloque_elegido, # <-- AQUÍ APLICAMOS EL FILTRO
+                    "match_threshold": 0.3, # Nivel de coincidencia (0.3 es flexible)
+                    "match_count": 5 # Número de resultados a mostrar
                 }
             ).execute()
 
-            if res.data and len(res.data) > 0:
-                contexto = "\n\n".join([item['contenido'] for item in res.data])
-                
-                # Cortafuegos de seguridad
-                if len(contexto) > 15000:
-                    contexto = contexto[:15000]
+            resultados = respuesta.data
 
-                # --- 5. SOLICITUD A GROQ ---
-                # Hemos relajado un pelín la orden para que sepa interpretar sinónimos ("Corresponde a la tutoría" = "Funciones del tutor")
-                prompt_sistema = """Eres un consultor legal experto en normativa educativa.
-                Tu labor es responder a la pregunta del usuario basándote EXCLUSIVAMENTE en el CONTEXTO proporcionado.
-                
-                REGLAS:
-                1. Redacta la respuesta en formato de párrafo fluido, sintetizando la información.
-                2. Si la información está en el contexto pero expresada con otras palabras (ej. "tareas", "corresponde a..."), dedúcelo y úsalo.
-                3. NUNCA inventes datos externos. Si tras leer bien el contexto NO hay mención al tema, responde: "La normativa referenciada no contiene información explícita sobre este tema."
-                4. Responde directamente sin decir "Según el contexto". """
-
-                prompt_usuario = f"CONTEXTO OBLIGATORIO:\n{contexto}\n\nPREGUNTA: {query}"
-
-                respuesta_ia = groq_client.chat.completions.create(
-                    messages=[
-                        {"role": "system", "content": prompt_sistema},
-                        {"role": "user", "content": prompt_usuario}
-                    ],
-                    model="llama-3.1-8b-instant",
-                    temperature=0.0, 
-                )
-
-                # --- 6. RESULTADO FINAL ---
-                st.markdown("### Respuesta oficial:")
-                st.write(respuesta_ia.choices[0].message.content)
-                
-                # --- HERRAMIENTAS DE DIAGNÓSTICO ---
-                st.divider()
-                st.caption("Herramientas de verificación")
-                
-                with st.expander("🔍 Verificar páginas encontradas"):
-                    fuentes = set([f"{i['nombre_archivo']} (Pág {i['pagina_num']})" for i in res.data])
-                    for f in fuentes:
-                        st.write(f"- {f}")
-                
-                with st.expander("🛠️ Modo Diagnóstico: Ver texto crudo (Lo que lee la IA)"):
-                    st.warning("Esto es exactamente lo que la base de datos le ha pasado a la IA para que lea:")
-                    st.write(contexto)
-
+            # 3. Mostrar los resultados
+            if resultados:
+                st.success("¡He encontrado estos fragmentos en la normativa!")
+                for i, res in enumerate(resultados):
+                    st.markdown(f"#### 📄 Documento: `{res['nombre_archivo']}` (Página {res['pagina_num']})")
+                    st.info(res['contenido'])
+                    st.write("---")
             else:
-                st.warning(f"La búsqueda en la base de datos ha devuelto 0 resultados para el bloque '{bloque}'.")
+                st.warning("No he encontrado nada específico en este bloque con esas palabras. Prueba a reformular la pregunta.")
 
         except Exception as e:
-            st.error(f"Error técnico: {e}")
+            st.error(f"Error técnico al buscar: {e}")
