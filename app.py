@@ -3,98 +3,79 @@ from supabase import create_client
 from sentence_transformers import SentenceTransformer
 from groq import Groq
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Asistente de Normativa Educativa", page_icon="🧠")
-st.title("🧠 Asistente de Normativa Educativa")
-st.markdown("Haz una pregunta y la IA redactará la respuesta basándose **exclusivamente** en tus documentos oficiales.")
+# --- 1. CONFIGURACIÓN ---
+st.set_page_config(page_title="Asistente de Normativa", page_icon="⚖️")
+st.title("⚖️ Asistente de Normativa Educativa")
 
-# --- 2. CREDENCIALES (Secrets) ---
+# --- 2. CONEXIÓN ---
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
-groq_api_key = st.secrets["GROQ_API_KEY"] 
+groq_api_key = st.secrets["GROQ_API_KEY"]
 
-# Inicializar clientes
 supabase = create_client(url, key)
 groq_client = Groq(api_key=groq_api_key)
 
-# --- 3. CARGAR MODELO DE EMBEDDINGS (El "Buscador") ---
+# --- 3. MODELO DE BÚSQUEDA ---
 @st.cache_resource
 def load_model():
     return SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
 
 model = load_model()
 
-# --- 4. BARRA LATERAL (Filtros) ---
-st.sidebar.header("Filtros")
-bloque = st.sidebar.selectbox("Bloque normativo:", ["general", "infantil_primaria", "secundaria_bachillerato", "fp"])
-
-# --- 5. INTERFAZ DE USUARIO ---
-query = st.text_input("Haz tu pregunta (ej: '¿Cuáles son los criterios de evaluación en primaria?'):")
+# --- 4. INTERFAZ ---
+bloque = st.sidebar.selectbox("Bloque:", ["general", "infantil_primaria", "secundaria_bachillerato", "fp"])
+query = st.text_input("Escribe tu duda aquí:")
 
 if query:
-    with st.spinner("1️⃣ Buscando en los PDFs (Búsqueda Híbrida)..."):
-        # Convertir pregunta a vector
+    with st.spinner("Analizando la normativa al pie de la letra..."):
         query_embedding = model.encode(query).tolist()
 
         try:
-            # Buscar los mejores fragmentos en Supabase
+            # BUSCAMOS EN SUPABASE
             res = supabase.rpc(
                 "match_normativa_educativa",
                 {
                     "query_embedding": query_embedding,
                     "query_text": query,
-                    "match_threshold": 0.3, # Umbral bajo para asegurar que pillamos contexto
-                    "match_count": 5,       # Pasamos los 5 mejores trozos a Groq
+                    "match_threshold": 0.25, # PUNTO DE EQUILIBRIO: Ni muy estricto ni muy laxo
+                    "match_count": 20,       # Le damos 20 fragmentos para que tenga lectura de sobra
                     "filter_bloque": bloque,
                 }
             ).execute()
 
-            if not res.data:
-                st.warning("No he encontrado información relevante en los documentos para esta consulta.")
-            else:
-                st.success("2️⃣ Información encontrada. Redactando respuesta...")
+            if res.data:
+                contexto = "\n".join([item['contenido'] for item in res.data])
                 
-                # Unir los fragmentos encontrados para dárselos a Groq
-                contexto_crudo = "\n\n".join([item['contenido'] for item in res.data])
-                # Sacar las fuentes únicas para mostrarlas después
-                fuentes = set([f"{item['nombre_archivo']} (Pág {item['pagina_num']})" for item in res.data])
+                # --- 5. SOLICITUD A GROQ (EL REDACTOR ESTRICTO) ---
+                prompt_sistema = """Eres un estricto consultor legal en normativa educativa.
+                Tu ÚNICA labor es responder a la pregunta del usuario basándote EXCLUSIVAMENTE en el CONTEXTO proporcionado.
+                
+                REGLAS INQUEBRANTABLES:
+                1. Redacta la respuesta en formato de párrafo (o varios si es necesario), de forma fluida. No uses listas numeradas.
+                2. NUNCA inventes, asumas o deduzcas información. Tu conocimiento externo está apagado. Todo dato debe provenir del CONTEXTO.
+                3. Si el CONTEXTO proporcionado no contiene la información explícita para responder a la pregunta, DEBES detenerte y responder EXACTAMENTE esto: "La normativa referenciada no contiene información explícita para responder a esta pregunta."
+                4. No uses frases de relleno como "Según el contexto proporcionado". Responde directamente."""
 
-                # --- 6. LLAMADA A GROQ (El "Redactor") ---
-                prompt_sistema = """Eres un asistente experto en normativa educativa. 
-                Tu tarea es responder a la pregunta del usuario utilizando ÚNICAMENTE la información contenida en el CONTEXTO proporcionado.
-                REGLAS ESTRICTAS:
-                1. Escribe la respuesta en UN SOLO PÁRRAFO continuo.
-                2. Usa un lenguaje natural, directo y fácil de entender.
-                3. Si la respuesta a la pregunta no está en el CONTEXTO, responde EXACTAMENTE: 'No dispongo de información en la normativa referenciada para responder a esta pregunta.'
-                4. NUNCA inventes información que no esté en el contexto."""
+                prompt_usuario = f"CONTEXTO OBLIGATORIO:\n{contexto}\n\nPREGUNTA: {query}"
 
-                prompt_usuario = f"CONTEXTO:\n{contexto_crudo}\n\nPREGUNTA DEL USUARIO: {query}"
-
-                chat_completion = groq_client.chat.completions.create(
+                respuesta_ia = groq_client.chat.completions.create(
                     messages=[
                         {"role": "system", "content": prompt_sistema},
                         {"role": "user", "content": prompt_usuario}
                     ],
-                    # AQUÍ ESTÁ LA MAGIA: Modelo actualizado y súper rápido
-                    model="llama-3.1-8b-instant", 
-                    temperature=0.1, # Temperatura baja (0.1) para que no sea creativo, sino estricto con los datos
+                    model="llama-3.1-8b-instant",
+                    temperature=0.0, # TEMPERATURA A CERO: Cero creatividad, máxima fidelidad a los textos.
                 )
 
-                respuesta_final = chat_completion.choices[0].message.content
-
-                # --- 7. MOSTRAR RESULTADO ---
-                st.markdown("### Respuesta")
-                st.info(respuesta_final)
+                # --- 6. RESULTADO FINAL ---
+                st.markdown(respuesta_ia.choices[0].message.content)
                 
-                # Mostrar de dónde ha sacado la info (oculto por defecto para que quede limpio)
-                with st.expander("📄 Ver fuentes utilizadas"):
-                    st.markdown("La IA ha construido esta respuesta basándose en estos documentos exactos:")
-                    for fuente in fuentes:
-                        st.write(f"- {fuente}")
+                with st.expander("Ver fuentes oficiales consultadas"):
+                    fuentes = set([f"{i['nombre_archivo']} (Pág {i['pagina_num']})" for i in res.data])
+                    for f in fuentes:
+                        st.write(f"- {f}")
+            else:
+                st.warning("La búsqueda inicial no ha encontrado ningún artículo o fragmento relacionado con esas palabras.")
 
         except Exception as e:
-            st.error(f"Se ha producido un error: {e}")
-
-# --- PIE DE PÁGINA ---
-st.markdown("---")
-st.caption("Sistema RAG: Búsqueda Híbrida (Supabase) + Generación de Respuestas (Groq / Llama 3.1)")
+            st.error(f"Error técnico: {e}")
