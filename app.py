@@ -17,11 +17,9 @@ components.html(
     const doc = window.parent.document;
     doc.addEventListener('keydown', function(e) {
         if (e.key === 'c' || e.key === 'C') {
-            // Si el usuario está escribiendo en el buscador, le dejamos escribir la 'c' tranquilamente
             if (e.target.nodeName === 'INPUT' || e.target.nodeName === 'TEXTAREA') {
                 return;
             }
-            // Si está fuera del buscador, escondemos la pulsación 'C' para que Streamlit no la vea y no borre el caché
             e.stopPropagation();
         }
     }, true);
@@ -32,13 +30,11 @@ components.html(
 )
 
 # --- MEMORIA SEPARADA (Coste 0€) ---
-# 1. Memoria corta para la IA (Solo recuerda el último turno)
 if 'ultima_pregunta' not in st.session_state:
     st.session_state.ultima_pregunta = None
 if 'ultima_respuesta' not in st.session_state:
     st.session_state.ultima_respuesta = None
 
-# 2. Memoria larga para los PDFs (Guarda todo el historial de la sesión actual)
 if 'historial_completo' not in st.session_state:
     st.session_state.historial_completo = []
 
@@ -48,12 +44,10 @@ def generar_pdf(lista_interacciones, titulo_documento="Normativa Educativa"):
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Título
     pdf.set_font("Helvetica", style="B", size=16)
     pdf.cell(0, 10, titulo_documento, ln=True, align="C")
     pdf.ln(10)
     
-    # Contenido
     for item in lista_interacciones:
         pdf.set_font("Helvetica", style="B", size=12)
         pdf.multi_cell(0, 8, txt=f"PREGUNTA: {item['pregunta']}")
@@ -167,9 +161,83 @@ if st.button("Buscar") and pregunta:
                             
                         enlaces_fuentes.append(texto_fuente)
                     
-                    # 2. IA Redactora
+                    # 2. IA Redactora (Corregidas las comillas para evitar el SyntaxError)
                     prompt_sistema = (
                         "Eres un experto asesor jurista especializado en normativa educativa. "
                         "REGLA DE ORO: Responde ÚNICAMENTE utilizando la información de los fragmentos proporcionados en el contexto. "
                         "Si el contexto no menciona la respuesta a lo que te preguntan, DEBES responder exactamente esto: "
-                        "'No he encontrado información sobre esta cuestión
+                        "'No he encontrado información sobre esta cuestión específica en la normativa consultada.' "
+                        "Bajo NINGÚN concepto asumas, inventes o deduzcas leyes. "
+                        "Indica siempre el nombre del documento y la página en tu texto."
+                    )
+                    
+                    historial_texto = ""
+                    if st.session_state.ultima_pregunta:
+                        historial_texto = (
+                            f"--- CONTEXTO ANTERIOR ---\n"
+                            f"El usuario preguntó: {st.session_state.ultima_pregunta}\n"
+                            f"Tú respondiste: {st.session_state.ultima_respuesta}\n"
+                            f"-------------------------\n\n"
+                        )
+
+                    prompt_usuario = f"{historial_texto}CONTEXTO ACTUAL:\n{contexto_para_ia}\n\nPREGUNTA ACTUAL: {pregunta}"
+
+                    respuesta_ia = groq_client.chat.completions.create(
+                        model="llama-3.1-8b-instant", 
+                        messages=[
+                            {"role": "system", "content": prompt_sistema},
+                            {"role": "user", "content": prompt_usuario}
+                        ],
+                        temperature=0.1 
+                    )
+
+                    texto_final = respuesta_ia.choices[0].message.content
+                    fuentes_unicas = list(dict.fromkeys(enlaces_fuentes))
+                    fuentes_unicas_pdf = list(dict.fromkeys(textos_fuentes_pdf))
+
+                    # 3. GUARDAMOS EN LAS DOS MEMORIAS
+                    st.session_state.ultima_pregunta = pregunta
+                    st.session_state.ultima_respuesta = texto_final
+                    
+                    st.session_state.historial_completo.append({
+                        "pregunta": pregunta,
+                        "respuesta": texto_final,
+                        "fuentes": fuentes_unicas_pdf
+                    })
+
+                    # 4. Mostrar en pantalla
+                    st.write("---")
+                    st.markdown(texto_final)
+                    
+                    st.markdown("### 📚 Fuentes consultadas:")
+                    for fuente in fuentes_unicas:
+                        st.markdown(f"- 📄 {fuente}")
+                    
+                    st.write("---")
+                    
+                    # --- BOTONES DE EXPORTACIÓN A PDF ---
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        pdf_actual = generar_pdf([st.session_state.historial_completo[-1]], "Consulta de Normativa Educativa")
+                        st.download_button(
+                            label="📄 Descargar esta consulta (PDF)",
+                            data=pdf_actual,
+                            file_name="consulta_normativa.pdf",
+                            mime="application/pdf"
+                        )
+                        
+                    with col2:
+                        pdf_historial = generar_pdf(st.session_state.historial_completo, "Historial Completo de Consultas")
+                        st.download_button(
+                            label="📚 Descargar historial de chat (PDF)",
+                            data=pdf_historial,
+                            file_name="historial_normativa.pdf",
+                            mime="application/pdf"
+                        )
+                
+                else:
+                    st.warning("No he encontrado nada específico en este bloque con esas palabras.")
+
+            except Exception as e:
+                st.error(f"Error técnico al buscar: {e}")
