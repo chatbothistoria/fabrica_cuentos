@@ -124,7 +124,8 @@ if submit_button and pregunta:
                     {
                         "query_embedding": embedding_pregunta, 
                         "filtro_bloque": bloque_elegido,
-                        "match_threshold": 0.3, 
+                        # MEJORA 3 APLICADA: Subimos de 0.3 a 0.5 para que Supabase sea más estricto
+                        "match_threshold": 0.5, 
                         "match_count": 12
                     }
                 ).execute()
@@ -154,10 +155,11 @@ if submit_button and pregunta:
                             
                         enlaces_fuentes.append(texto_fuente)
                     
-                    # IA Redactora
+                    # MEJORA 1 APLICADA: IA con Cadena de Pensamiento (Chain of Thought)
                     prompt_sistema = (
                         "Eres un experto asesor jurista especializado en normativa educativa. "
                         "Analiza TODO el contexto proporcionado en su conjunto. "
+                        "Antes de redactar la respuesta, piensa y razona paso a paso cómo se relacionan los distintos fragmentos entre sí para contestar a la pregunta del usuario. "
                         "Responde ÚNICAMENTE utilizando esta información. Si la información es breve, indica al menos lo que se menciona explícitamente. "
                         "Si tras leer TODOS los fragmentos compruebas que de verdad no hay NADA relacionado con la pregunta, responde: "
                         "'No he encontrado información sobre esta cuestión en la normativa consultada.' "
@@ -188,7 +190,7 @@ if submit_button and pregunta:
                     fuentes_unicas = list(dict.fromkeys(enlaces_fuentes))
                     fuentes_unicas_pdf = list(dict.fromkeys(textos_fuentes_pdf))
 
-                    # GUARDAMOS EN MEMORIA PARA QUE NO SE BORRE
+                    # GUARDAMOS EN MEMORIA
                     st.session_state.ultima_pregunta = pregunta
                     st.session_state.ultima_respuesta = texto_final
                     st.session_state.ultimas_fuentes = fuentes_unicas
@@ -200,7 +202,8 @@ if submit_button and pregunta:
                     })
                 
                 else:
-                    st.warning("No he encontrado nada específico en este bloque con esas palabras. Prueba a reformular la pregunta.")
+                    # Si ningún fragmento llega al nivel de calidad 0.5, salta directo aquí
+                    st.warning("No he encontrado nada en este nivel educativo que coincida exactamente con tus palabras. Prueba a utilizar términos más específicos o reformular la pregunta.")
 
             except Exception as e:
                 st.error(f"Error técnico al buscar: {e}")
@@ -216,7 +219,6 @@ if st.session_state.ultima_respuesta:
     
     st.write("---")
     
-    # 3 Columnas para los 3 botones
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -238,10 +240,9 @@ if st.session_state.ultima_respuesta:
         )
         
     with col3:
-        # Botón para borrar la memoria y reiniciar la pantalla
         if st.button("🔄 Reiniciar chat"):
             st.session_state.ultima_pregunta = None
             st.session_state.ultima_respuesta = None
             st.session_state.ultimas_fuentes = []
             st.session_state.historial_completo = []
-            st.rerun() # Esto refresca la página instantáneamente y oculta la respuesta
+            st.rerun()
