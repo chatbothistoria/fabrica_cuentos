@@ -3,3 +3,4 @@ supabase
 sentence-transformers
 torch
 groq
+fpdf2
