@@ -6,30 +6,26 @@ from groq import Groq
 import csv
 import os
 from fpdf import FPDF
-import textwrap  # <-- Nueva librería nativa para evitar que el PDF se ahogue con textos largos
+import textwrap
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Buscador de Normativa Educativa", page_icon="📚")
 
-# --- 1.5 PARCHE ANTI-BORRADO DE CACHÉ DEFINITIVO ---
+# --- 1.5 PARCHE ANTI-BORRADO DE CACHÉ (Control+C) ---
 components.html(
     """
     <script>
     const doc = window.parent.document;
     doc.addEventListener('keydown', function(e) {
-        if (e.key === 'c' || e.key === 'C') {
-            // Si pulsa Control + C, le dejamos copiar pero ocultamos el evento a Streamlit
-            if (e.ctrlKey || e.metaKey) {
-                e.stopImmediatePropagation();
+        // Detectamos si presiona 'c' o 'C'
+        if (e.key.toLowerCase() === 'c') {
+            // Si está escribiendo en el buscador, lo dejamos en paz
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
                 return;
             }
-            // Si solo pulsa C, lo permitimos únicamente si está escribiendo una pregunta
-            if (e.target.nodeName === 'INPUT' || e.target.nodeName === 'TEXTAREA') {
-                return;
-            }
-            // Si está fuera de una caja de texto, matamos el evento
+            // Si está fuera, detenemos el evento para que Streamlit no lo vea (evita el borrar caché),
+            // pero el navegador seguirá copiando el texto seleccionado de forma nativa.
             e.stopImmediatePropagation();
-            e.preventDefault();
         }
     }, true);
     </script>
@@ -38,7 +34,7 @@ components.html(
     width=0,
 )
 
-# --- MEMORIA SEPARADA (Coste 0€) ---
+# --- MEMORIA SEPARADA ---
 if 'ultima_pregunta' not in st.session_state:
     st.session_state.ultima_pregunta = None
 if 'ultima_respuesta' not in st.session_state:
@@ -47,26 +43,23 @@ if 'ultima_respuesta' not in st.session_state:
 if 'historial_completo' not in st.session_state:
     st.session_state.historial_completo = []
 
-# --- FUNCIONES PARA CREAR PDFS GRATIS (A PRUEBA DE TEXTOS LARGOS) ---
+# --- FUNCIONES PARA CREAR PDFS GRATIS ---
 def generar_pdf(lista_interacciones, titulo_documento="Normativa Educativa"):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Título
     pdf.set_font("Helvetica", style="B", size=16)
     pdf.cell(0, 10, titulo_documento, ln=True, align="C")
     pdf.ln(10)
     
     for item in lista_interacciones:
-        # Pregunta
         pdf.set_font("Helvetica", style="B", size=12)
         lineas_pregunta = textwrap.wrap(f"PREGUNTA: {item['pregunta']}", width=80)
         for linea in lineas_pregunta:
             pdf.cell(0, 6, txt=linea, ln=True)
         pdf.ln(2)
         
-        # Respuesta (Cortamos manualmente a 90 caracteres de ancho para evitar errores)
         pdf.set_font("Helvetica", size=11)
         respuesta_limpia = item['respuesta'].encode('latin-1', 'replace').decode('latin-1')
         lineas_respuesta = textwrap.wrap(respuesta_limpia, width=90)
@@ -74,7 +67,6 @@ def generar_pdf(lista_interacciones, titulo_documento="Normativa Educativa"):
             pdf.cell(0, 6, txt=linea, ln=True)
         pdf.ln(5)
         
-        # Fuentes (Aquí es donde los URLs largos rompían el PDF)
         pdf.set_font("Helvetica", style="I", size=10)
         pdf.cell(0, 6, txt="FUENTES CONSULTADAS:", ln=True)
         for fuente in item['fuentes']:
@@ -135,16 +127,22 @@ bloque_elegido = st.selectbox(
     }[x]
 )
 
-pregunta = st.text_input("Haz tu pregunta sobre la normativa:")
+# --- 5. FORMULARIO DE BÚSQUEDA (Activa la tecla ENTER) ---
+with st.form(key='search_form'):
+    pregunta = st.text_input("Haz tu pregunta sobre la normativa:")
+    submit_button = st.form_submit_button(label="Buscar")
 
-if st.button("Buscar") and pregunta:
+if submit_button and pregunta:
     if bloque_elegido == "ninguno":
         st.warning("⚠️ Por favor, selecciona un nivel educativo en el menú desplegable antes de buscar.")
     else:
         with st.spinner("Buscando en las leyes y redactando la respuesta..."):
             try:
-                # 1. Búsqueda
-                embedding_pregunta = model.encode(pregunta).tolist()
+                # 1. Búsqueda y arreglo del formato Bytearray
+                raw_embedding = model.encode(pregunta).tolist()
+                # Forzamos que todos los números sean decimales nativos puros de Python
+                embedding_pregunta = [float(val) for val in raw_embedding]
+                
                 respuesta_bd = supabase.rpc(
                     "buscar_normativa", 
                     {
@@ -256,7 +254,7 @@ if st.button("Buscar") and pregunta:
                         )
                 
                 else:
-                    st.warning("No he encontrado nada específico en este bloque con esas palabras.")
+                    st.warning("No he encontrado nada específico en este bloque con esas palabras. Prueba a reformular la pregunta.")
 
             except Exception as e:
                 st.error(f"Error técnico al buscar: {e}")
