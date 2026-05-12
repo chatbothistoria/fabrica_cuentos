@@ -11,23 +11,26 @@ import textwrap
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Buscador de Normativa Educativa", page_icon="📚")
 
-# --- 1.5 PARCHE ANTI-BORRADO DE CACHÉ (Control+C) ---
+# --- 1.5 PARCHE ANTI-BORRADO DE CACHÉ (Nivel Dios con capture: true) ---
 components.html(
     """
     <script>
     const doc = window.parent.document;
     doc.addEventListener('keydown', function(e) {
-        // Detectamos si presiona 'c' o 'C'
         if (e.key.toLowerCase() === 'c') {
-            // Si está escribiendo en el buscador, lo dejamos en paz
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                return;
+            // Si el usuario presiona Ctrl+C o Cmd+C para copiar texto
+            if (e.ctrlKey || e.metaKey) {
+                e.stopImmediatePropagation(); // Oculta el evento a Streamlit, pero el navegador copia
+            } 
+            // Si solo presiona la letra 'c' sin Ctrl
+            else {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                }
             }
-            // Si está fuera, detenemos el evento para que Streamlit no lo vea (evita el borrar caché),
-            // pero el navegador seguirá copiando el texto seleccionado de forma nativa.
-            e.stopImmediatePropagation();
         }
-    }, true);
+    }, {capture: true}); // <-- ESTO ES LA CLAVE: Actúa antes que Streamlit
     </script>
     """,
     height=0,
@@ -127,7 +130,7 @@ bloque_elegido = st.selectbox(
     }[x]
 )
 
-# --- 5. FORMULARIO DE BÚSQUEDA (Activa la tecla ENTER) ---
+# --- 5. FORMULARIO DE BÚSQUEDA ---
 with st.form(key='search_form'):
     pregunta = st.text_input("Haz tu pregunta sobre la normativa:")
     submit_button = st.form_submit_button(label="Buscar")
@@ -138,9 +141,8 @@ if submit_button and pregunta:
     else:
         with st.spinner("Buscando en las leyes y redactando la respuesta..."):
             try:
-                # 1. Búsqueda y arreglo del formato Bytearray
+                # 1. Búsqueda (¡AHORA BUSCAMOS LOS 12 MEJORES FRAGMENTOS!)
                 raw_embedding = model.encode(pregunta).tolist()
-                # Forzamos que todos los números sean decimales nativos puros de Python
                 embedding_pregunta = [float(val) for val in raw_embedding]
                 
                 respuesta_bd = supabase.rpc(
@@ -149,7 +151,7 @@ if submit_button and pregunta:
                         "query_embedding": embedding_pregunta, 
                         "filtro_bloque": bloque_elegido,
                         "match_threshold": 0.3, 
-                        "match_count": 6 
+                        "match_count": 12 # <-- Aumentado de 6 a 12 para tener más contexto global
                     }
                 ).execute()
 
@@ -178,14 +180,14 @@ if submit_button and pregunta:
                             
                         enlaces_fuentes.append(texto_fuente)
                     
-                    # 2. IA Redactora
+                    # 2. IA Redactora (Prompt mejorado: menos estricto con fragmentos sueltos, evalúa el global)
                     prompt_sistema = (
                         "Eres un experto asesor jurista especializado en normativa educativa. "
-                        "REGLA DE ORO: Responde ÚNICAMENTE utilizando la información de los fragmentos proporcionados en el contexto. "
-                        "Si el contexto no menciona la respuesta a lo que te preguntan, DEBES responder exactamente esto: "
-                        "'No he encontrado información sobre esta cuestión específica en la normativa consultada.' "
-                        "Bajo NINGÚN concepto asumas, inventes o deduzcas leyes. "
-                        "Indica siempre el nombre del documento y la página en tu texto."
+                        "Analiza TODO el contexto proporcionado en su conjunto (son varios fragmentos de distintos documentos). "
+                        "Responde ÚNICAMENTE utilizando esta información. Si la información es breve, indica al menos lo que se menciona explícitamente. "
+                        "Si tras leer TODOS los fragmentos compruebas que de verdad no hay NADA relacionado con la pregunta, responde: "
+                        "'No he encontrado información sobre esta cuestión en la normativa consultada.' "
+                        "Bajo NINGÚN concepto asumas, inventes o deduzcas leyes. Indica el nombre del documento y página al citar."
                     )
                     
                     historial_texto = ""
