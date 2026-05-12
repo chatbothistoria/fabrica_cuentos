@@ -7,8 +7,6 @@ from groq import Groq
 st.set_page_config(page_title="Buscador de Normativa Educativa", page_icon="📚")
 
 # --- 2. CLAVES DE ACCESO (DESDE LA CAJA FUERTE DE STREAMLIT) ---
-# El código leerá estas variables automáticamente de tu archivo .streamlit/secrets.toml
-# o de la configuración de Secrets en tu panel web de Streamlit.
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
@@ -71,5 +69,37 @@ if st.button("Buscar") and pregunta:
                 
                 fuentes_unicas = list(dict.fromkeys(fuentes_lista))
 
-                # PASO 3: El escritor (Groq) lee el contexto y redacta
-                prompt_sistema = """Eres un experto
+                # PASO 3: El escritor (Groq) lee el contexto y redacta (¡Corregido sin comillas triples!)
+                prompt_sistema = (
+                    "Eres un experto asesor en normativa educativa. "
+                    "Tu tarea es responder a la pregunta del usuario utilizando ÚNICAMENTE la información proporcionada en el contexto. "
+                    "Si mencionas algo específico, indica en tu redacción el nombre del documento y la página tal y como aparece en el contexto. "
+                    "Escribe de forma clara, estructurada, resumiendo los puntos clave de forma natural."
+                )
+                
+                prompt_usuario = f"CONTEXTO DE LAS LEYES:\n{contexto_para_ia}\n\nPREGUNTA DEL USUARIO: {pregunta}"
+
+                respuesta_ia = groq_client.chat.completions.create(
+                    model="llama3-8b-8192", 
+                    messages=[
+                        {"role": "system", "content": prompt_sistema},
+                        {"role": "user", "content": prompt_usuario}
+                    ],
+                    temperature=0.2 
+                )
+
+                texto_final = respuesta_ia.choices[0].message.content
+
+                # PASO 4: Mostrar el resultado exacto
+                st.write("---")
+                st.markdown(texto_final)
+                
+                st.markdown("### 📚 Fuentes consultadas:")
+                for fuente in fuentes_unicas:
+                    st.markdown(f"- 📄 **{fuente}**")
+                
+            else:
+                st.warning("No he encontrado nada específico en este bloque con esas palabras. Prueba a reformular la pregunta.")
+
+        except Exception as e:
+            st.error(f"Error técnico al buscar: {e}")
