@@ -53,7 +53,8 @@ def generar_pdf(lista_interacciones, titulo_documento="Normativa Educativa"):
         
         pdf.ln(10) 
         
-    return pdf.output() 
+    # ¡AQUÍ ESTABA EL ERROR! Lo convertimos a "bytes" puros para que Streamlit no colapse
+    return bytes(pdf.output())
 
 # --- 2. CLAVES DE ACCESO ---
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -114,7 +115,7 @@ if submit_button and pregunta:
     else:
         with st.spinner("Buscando en las leyes y redactando la respuesta..."):
             try:
-                # 1. Búsqueda (Volvemos a la lista de Python pura que funciona perfectamente en Supabase)
+                # 1. Búsqueda
                 embedding_pregunta = model.encode(pregunta).tolist()
                 
                 respuesta_bd = supabase.rpc(
@@ -123,7 +124,7 @@ if submit_button and pregunta:
                         "query_embedding": embedding_pregunta, 
                         "filtro_bloque": bloque_elegido,
                         "match_threshold": 0.3, 
-                        "match_count": 12 # Seguimos buscando en 12 fragmentos para tener mucha información
+                        "match_count": 12
                     }
                 ).execute()
 
@@ -155,7 +156,7 @@ if submit_button and pregunta:
                     # 2. IA Redactora
                     prompt_sistema = (
                         "Eres un experto asesor jurista especializado en normativa educativa. "
-                        "Analiza TODO el contexto proporcionado en su conjunto (son varios fragmentos de distintos documentos). "
+                        "Analiza TODO el contexto proporcionado en su conjunto. "
                         "Responde ÚNICAMENTE utilizando esta información. Si la información es breve, indica al menos lo que se menciona explícitamente. "
                         "Si tras leer TODOS los fragmentos compruebas que de verdad no hay NADA relacionado con la pregunta, responde: "
                         "'No he encontrado información sobre esta cuestión en la normativa consultada.' "
@@ -225,10 +226,3 @@ if submit_button and pregunta:
                             data=pdf_historial,
                             file_name="historial_normativa.pdf",
                             mime="application/pdf"
-                        )
-                
-                else:
-                    st.warning("No he encontrado nada específico en este bloque con esas palabras. Prueba a reformular la pregunta.")
-
-            except Exception as e:
-                st.error(f"Error técnico al buscar: {e}")
