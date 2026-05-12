@@ -205,10 +205,7 @@ if submit_button and pregunta:
             except Exception as e:
                 st.error(f"Error técnico al buscar: {e}")
 
-# --- 7. MOSTRAR RESULTADOS (Fuera del botón Buscar) ---
-# Al estar fuera, esto se dibujará siempre que haya algo en la memoria,
-# incluso después de pulsar el botón de descargar el PDF.
-
+# --- 7. MOSTRAR RESULTADOS Y BOTONES DE ACCIÓN ---
 if st.session_state.ultima_respuesta:
     st.write("---")
     st.markdown(st.session_state.ultima_respuesta)
@@ -219,23 +216,32 @@ if st.session_state.ultima_respuesta:
     
     st.write("---")
     
-    # Botones de exportación
-    col1, col2 = st.columns(2)
+    # 3 Columnas para los 3 botones
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         pdf_actual = generar_pdf([st.session_state.historial_completo[-1]], "Consulta de Normativa Educativa")
         st.download_button(
-            label="📄 Descargar esta consulta (PDF)",
+            label="📄 Descargar esta consulta",
             data=pdf_actual,
             file_name="consulta_normativa.pdf",
             mime="application/pdf"
         )
         
     with col2:
-        pdf_historial = generar_pdf(st.session_state.historial_completo, "Historial Completo de Consultas")
+        pdf_historial = generar_pdf(st.session_state.historial_completo, "Historial Completo")
         st.download_button(
-            label="📚 Descargar historial de chat (PDF)",
+            label="📚 Descargar historial",
             data=pdf_historial,
             file_name="historial_normativa.pdf",
             mime="application/pdf"
         )
+        
+    with col3:
+        # Botón para borrar la memoria y reiniciar la pantalla
+        if st.button("🔄 Reiniciar chat"):
+            st.session_state.ultima_pregunta = None
+            st.session_state.ultima_respuesta = None
+            st.session_state.ultimas_fuentes = []
+            st.session_state.historial_completo = []
+            st.rerun() # Esto refresca la página instantáneamente y oculta la respuesta
