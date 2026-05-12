@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
 from groq import Groq
@@ -8,6 +9,27 @@ from fpdf import FPDF
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Buscador de Normativa Educativa", page_icon="📚")
+
+# --- 1.5 PARCHE ANTI-BORRADO DE CACHÉ (Bloqueador del atajo "C" y "Ctrl+C") ---
+components.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    doc.addEventListener('keydown', function(e) {
+        if (e.key === 'c' || e.key === 'C') {
+            // Si el usuario está escribiendo en el buscador, le dejamos escribir la 'c' tranquilamente
+            if (e.target.nodeName === 'INPUT' || e.target.nodeName === 'TEXTAREA') {
+                return;
+            }
+            // Si está fuera del buscador, escondemos la pulsación 'C' para que Streamlit no la vea y no borre el caché
+            e.stopPropagation();
+        }
+    }, true);
+    </script>
+    """,
+    height=0,
+    width=0,
+)
 
 # --- MEMORIA SEPARADA (Coste 0€) ---
 # 1. Memoria corta para la IA (Solo recuerda el último turno)
@@ -22,7 +44,6 @@ if 'historial_completo' not in st.session_state:
 
 # --- FUNCIONES PARA CREAR PDFS GRATIS ---
 def generar_pdf(lista_interacciones, titulo_documento="Normativa Educativa"):
-    # Usamos FPDF para generar un PDF al vuelo
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
@@ -34,27 +55,24 @@ def generar_pdf(lista_interacciones, titulo_documento="Normativa Educativa"):
     
     # Contenido
     for item in lista_interacciones:
-        # Pregunta
         pdf.set_font("Helvetica", style="B", size=12)
         pdf.multi_cell(0, 8, txt=f"PREGUNTA: {item['pregunta']}")
         pdf.ln(2)
         
-        # Respuesta (Cambiamos caracteres raros para que FPDF no falle con acentos)
         pdf.set_font("Helvetica", size=11)
         respuesta_limpia = item['respuesta'].encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 6, txt=respuesta_limpia)
         pdf.ln(5)
         
-        # Fuentes
         pdf.set_font("Helvetica", style="I", size=10)
         pdf.multi_cell(0, 6, txt="FUENTES CONSULTADAS:")
         for fuente in item['fuentes']:
             fuente_limpia = fuente.encode('latin-1', 'replace').decode('latin-1')
             pdf.multi_cell(0, 6, txt=f"- {fuente_limpia}")
         
-        pdf.ln(10) # Espacio entre consultas
+        pdf.ln(10) 
         
-    return pdf.output() # Devuelve los bytes del PDF
+    return pdf.output() 
 
 # --- 2. CLAVES DE ACCESO ---
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -129,7 +147,7 @@ if st.button("Buscar") and pregunta:
                 if resultados:
                     contexto_para_ia = ""
                     enlaces_fuentes = []
-                    textos_fuentes_pdf = [] # Guardamos esto limpio para el PDF
+                    textos_fuentes_pdf = [] 
                     
                     for res in resultados:
                         nombre_archivo = res['nombre_archivo']
@@ -149,88 +167,9 @@ if st.button("Buscar") and pregunta:
                             
                         enlaces_fuentes.append(texto_fuente)
                     
-                    # 2. IA Redactora (Protegida contra inventos)
+                    # 2. IA Redactora
                     prompt_sistema = (
                         "Eres un experto asesor jurista especializado en normativa educativa. "
                         "REGLA DE ORO: Responde ÚNICAMENTE utilizando la información de los fragmentos proporcionados en el contexto. "
                         "Si el contexto no menciona la respuesta a lo que te preguntan, DEBES responder exactamente esto: "
-                        "'No he encontrado información sobre esta cuestión específica en la normativa consultada.' "
-                        "Bajo NINGÚN concepto asumas, inventes o deduzcas leyes. "
-                        "Indica siempre el nombre del documento y la página en tu texto."
-                    )
-                    
-                    # Memoria corta (solo la consulta anterior para Groq)
-                    historial_texto = ""
-                    if st.session_state.ultima_pregunta:
-                        historial_texto = (
-                            f"--- CONTEXTO ANTERIOR ---\n"
-                            f"El usuario preguntó: {st.session_state.ultima_pregunta}\n"
-                            f"Tú respondiste: {st.session_state.ultima_respuesta}\n"
-                            f"-------------------------\n\n"
-                        )
-
-                    prompt_usuario = f"{historial_texto}CONTEXTO ACTUAL:\n{contexto_para_ia}\n\nPREGUNTA ACTUAL: {pregunta}"
-
-                    respuesta_ia = groq_client.chat.completions.create(
-                        model="llama-3.1-8b-instant", 
-                        messages=[
-                            {"role": "system", "content": prompt_sistema},
-                            {"role": "user", "content": prompt_usuario}
-                        ],
-                        temperature=0.1 
-                    )
-
-                    texto_final = respuesta_ia.choices[0].message.content
-                    fuentes_unicas = list(dict.fromkeys(enlaces_fuentes))
-                    fuentes_unicas_pdf = list(dict.fromkeys(textos_fuentes_pdf))
-
-                    # 3. GUARDAMOS EN LAS DOS MEMORIAS
-                    # Memoria Corta (Groq)
-                    st.session_state.ultima_pregunta = pregunta
-                    st.session_state.ultima_respuesta = texto_final
-                    
-                    # Memoria Larga (Para los PDFs)
-                    st.session_state.historial_completo.append({
-                        "pregunta": pregunta,
-                        "respuesta": texto_final,
-                        "fuentes": fuentes_unicas_pdf
-                    })
-
-                    # 4. Mostrar en pantalla
-                    st.write("---")
-                    st.markdown(texto_final)
-                    
-                    st.markdown("### 📚 Fuentes consultadas:")
-                    for fuente in fuentes_unicas:
-                        st.markdown(f"- 📄 {fuente}")
-                    
-                    st.write("---")
-                    
-                    # --- BOTONES DE EXPORTACIÓN A PDF ---
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        # Genera PDF solo con esta consulta (el último elemento de la lista)
-                        pdf_actual = generar_pdf([st.session_state.historial_completo[-1]], "Consulta de Normativa Educativa")
-                        st.download_button(
-                            label="📄 Descargar esta consulta (PDF)",
-                            data=pdf_actual,
-                            file_name="consulta_normativa.pdf",
-                            mime="application/pdf"
-                        )
-                        
-                    with col2:
-                        # Genera PDF con todo el historial de la sesión
-                        pdf_historial = generar_pdf(st.session_state.historial_completo, "Historial Completo de Consultas")
-                        st.download_button(
-                            label="📚 Descargar historial de chat (PDF)",
-                            data=pdf_historial,
-                            file_name="historial_normativa.pdf",
-                            mime="application/pdf"
-                        )
-                
-                else:
-                    st.warning("No he encontrado nada específico en este bloque con esas palabras.")
-
-            except Exception as e:
-                st.error(f"Error técnico al buscar: {e}")
+                        "'No he encontrado información sobre esta cuestión
