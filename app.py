@@ -103,7 +103,7 @@ bloque_elegido = st.selectbox(
     }[x]
 )
 
-# --- 5. FORMULARIO DE BÚSQUEDA (Activa la tecla ENTER) ---
+# --- 5. FORMULARIO DE BÚSQUEDA ---
 with st.form(key='search_form'):
     pregunta = st.text_input("Haz tu pregunta sobre la normativa:")
     submit_button = st.form_submit_button(label="Buscar")
@@ -114,18 +114,16 @@ if submit_button and pregunta:
     else:
         with st.spinner("Buscando en las leyes y redactando la respuesta..."):
             try:
-                # 1. Búsqueda y SOLUCIÓN AL ERROR BYTEARRAY
-                raw_embedding = model.encode(pregunta).tolist()
-                # Convertimos la lista de números a un texto puro: "[0.123, -0.456...]"
-                embedding_string = "[" + ",".join(map(str, raw_embedding)) + "]"
+                # 1. Búsqueda (Volvemos a la lista de Python pura que funciona perfectamente en Supabase)
+                embedding_pregunta = model.encode(pregunta).tolist()
                 
                 respuesta_bd = supabase.rpc(
                     "buscar_normativa", 
                     {
-                        "query_embedding": embedding_string, # Enviamos el texto puro a la base de datos
+                        "query_embedding": embedding_pregunta, 
                         "filtro_bloque": bloque_elegido,
                         "match_threshold": 0.3, 
-                        "match_count": 12 # Ampliado a 12 para que no se quede sin información
+                        "match_count": 12 # Seguimos buscando en 12 fragmentos para tener mucha información
                     }
                 ).execute()
 
