@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
 from groq import Groq
@@ -10,32 +9,6 @@ import textwrap
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Buscador de Normativa Educativa", page_icon="📚")
-
-# --- 1.5 PARCHE ANTI-BORRADO DE CACHÉ (Nivel Dios con capture: true) ---
-components.html(
-    """
-    <script>
-    const doc = window.parent.document;
-    doc.addEventListener('keydown', function(e) {
-        if (e.key.toLowerCase() === 'c') {
-            // Si el usuario presiona Ctrl+C o Cmd+C para copiar texto
-            if (e.ctrlKey || e.metaKey) {
-                e.stopImmediatePropagation(); // Oculta el evento a Streamlit, pero el navegador copia
-            } 
-            // Si solo presiona la letra 'c' sin Ctrl
-            else {
-                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-                    e.stopImmediatePropagation();
-                    e.preventDefault();
-                }
-            }
-        }
-    }, {capture: true}); // <-- ESTO ES LA CLAVE: Actúa antes que Streamlit
-    </script>
-    """,
-    height=0,
-    width=0,
-)
 
 # --- MEMORIA SEPARADA ---
 if 'ultima_pregunta' not in st.session_state:
@@ -130,7 +103,7 @@ bloque_elegido = st.selectbox(
     }[x]
 )
 
-# --- 5. FORMULARIO DE BÚSQUEDA ---
+# --- 5. FORMULARIO DE BÚSQUEDA (Activa la tecla ENTER) ---
 with st.form(key='search_form'):
     pregunta = st.text_input("Haz tu pregunta sobre la normativa:")
     submit_button = st.form_submit_button(label="Buscar")
@@ -141,17 +114,18 @@ if submit_button and pregunta:
     else:
         with st.spinner("Buscando en las leyes y redactando la respuesta..."):
             try:
-                # 1. Búsqueda (¡AHORA BUSCAMOS LOS 12 MEJORES FRAGMENTOS!)
+                # 1. Búsqueda y SOLUCIÓN AL ERROR BYTEARRAY
                 raw_embedding = model.encode(pregunta).tolist()
-                embedding_pregunta = [float(val) for val in raw_embedding]
+                # Convertimos la lista de números a un texto puro: "[0.123, -0.456...]"
+                embedding_string = "[" + ",".join(map(str, raw_embedding)) + "]"
                 
                 respuesta_bd = supabase.rpc(
                     "buscar_normativa", 
                     {
-                        "query_embedding": embedding_pregunta, 
+                        "query_embedding": embedding_string, # Enviamos el texto puro a la base de datos
                         "filtro_bloque": bloque_elegido,
                         "match_threshold": 0.3, 
-                        "match_count": 12 # <-- Aumentado de 6 a 12 para tener más contexto global
+                        "match_count": 12 # Ampliado a 12 para que no se quede sin información
                     }
                 ).execute()
 
@@ -180,7 +154,7 @@ if submit_button and pregunta:
                             
                         enlaces_fuentes.append(texto_fuente)
                     
-                    # 2. IA Redactora (Prompt mejorado: menos estricto con fragmentos sueltos, evalúa el global)
+                    # 2. IA Redactora
                     prompt_sistema = (
                         "Eres un experto asesor jurista especializado en normativa educativa. "
                         "Analiza TODO el contexto proporcionado en su conjunto (son varios fragmentos de distintos documentos). "
