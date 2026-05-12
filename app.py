@@ -28,15 +28,15 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 st.title("📚 Buscador Inteligente de Normativa Educativa")
 st.write("Selecciona el nivel educativo y haz tu pregunta para encontrar la ley exacta.")
 
-# Menú desplegable con opción por defecto
+# Menú desplegable con el ORDEN SOLICITADO
 bloque_elegido = st.selectbox(
     "Nivel educativo:",
-    ["ninguno", "fp", "infantil_primaria", "secundaria_bachillerato"],
+    ["ninguno", "infantil_primaria", "secundaria_bachillerato", "fp"],
     format_func=lambda x: {
         "ninguno": "Por favor, elige un nivel educativo",
-        "fp": "Formación Profesional",
         "infantil_primaria": "Infantil y Primaria",
-        "secundaria_bachillerato": "Secundaria y Bachillerato"
+        "secundaria_bachillerato": "Secundaria y Bachillerato",
+        "fp": "Formación Profesional"
     }[x]
 )
 
@@ -76,7 +76,6 @@ if st.button("Buscar") and pregunta:
                     fuentes_unicas = list(dict.fromkeys(fuentes_lista))
 
                     # PASO 3: El escritor (Groq) lee el contexto y redacta 
-                    # Hemos actualizado el modelo a una versión moderna y operativa
                     prompt_sistema = (
                         "Eres un experto asesor en normativa educativa. "
                         "Tu tarea es responder a la pregunta del usuario utilizando ÚNICAMENTE la información proporcionada en el contexto. "
@@ -87,7 +86,7 @@ if st.button("Buscar") and pregunta:
                     prompt_usuario = f"CONTEXTO DE LAS LEYES:\n{contexto_para_ia}\n\nPREGUNTA DEL USUARIO: {pregunta}"
 
                     respuesta_ia = groq_client.chat.completions.create(
-                        model="llama-3.1-8b-instant", # <-- EL NUEVO MODELO DE GROQ
+                        model="llama-3.1-8b-instant", 
                         messages=[
                             {"role": "system", "content": prompt_sistema},
                             {"role": "user", "content": prompt_usuario}
