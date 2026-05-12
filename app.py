@@ -6,21 +6,30 @@ from groq import Groq
 import csv
 import os
 from fpdf import FPDF
+import textwrap  # <-- Nueva librería nativa para evitar que el PDF se ahogue con textos largos
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Buscador de Normativa Educativa", page_icon="📚")
 
-# --- 1.5 PARCHE ANTI-BORRADO DE CACHÉ (Bloqueador del atajo "C" y "Ctrl+C") ---
+# --- 1.5 PARCHE ANTI-BORRADO DE CACHÉ DEFINITIVO ---
 components.html(
     """
     <script>
     const doc = window.parent.document;
     doc.addEventListener('keydown', function(e) {
         if (e.key === 'c' || e.key === 'C') {
+            // Si pulsa Control + C, le dejamos copiar pero ocultamos el evento a Streamlit
+            if (e.ctrlKey || e.metaKey) {
+                e.stopImmediatePropagation();
+                return;
+            }
+            // Si solo pulsa C, lo permitimos únicamente si está escribiendo una pregunta
             if (e.target.nodeName === 'INPUT' || e.target.nodeName === 'TEXTAREA') {
                 return;
             }
-            e.stopPropagation();
+            // Si está fuera de una caja de texto, matamos el evento
+            e.stopImmediatePropagation();
+            e.preventDefault();
         }
     }, true);
     </script>
@@ -38,31 +47,41 @@ if 'ultima_respuesta' not in st.session_state:
 if 'historial_completo' not in st.session_state:
     st.session_state.historial_completo = []
 
-# --- FUNCIONES PARA CREAR PDFS GRATIS ---
+# --- FUNCIONES PARA CREAR PDFS GRATIS (A PRUEBA DE TEXTOS LARGOS) ---
 def generar_pdf(lista_interacciones, titulo_documento="Normativa Educativa"):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
+    # Título
     pdf.set_font("Helvetica", style="B", size=16)
     pdf.cell(0, 10, titulo_documento, ln=True, align="C")
     pdf.ln(10)
     
     for item in lista_interacciones:
+        # Pregunta
         pdf.set_font("Helvetica", style="B", size=12)
-        pdf.multi_cell(0, 8, txt=f"PREGUNTA: {item['pregunta']}")
+        lineas_pregunta = textwrap.wrap(f"PREGUNTA: {item['pregunta']}", width=80)
+        for linea in lineas_pregunta:
+            pdf.cell(0, 6, txt=linea, ln=True)
         pdf.ln(2)
         
+        # Respuesta (Cortamos manualmente a 90 caracteres de ancho para evitar errores)
         pdf.set_font("Helvetica", size=11)
         respuesta_limpia = item['respuesta'].encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 6, txt=respuesta_limpia)
+        lineas_respuesta = textwrap.wrap(respuesta_limpia, width=90)
+        for linea in lineas_respuesta:
+            pdf.cell(0, 6, txt=linea, ln=True)
         pdf.ln(5)
         
+        # Fuentes (Aquí es donde los URLs largos rompían el PDF)
         pdf.set_font("Helvetica", style="I", size=10)
-        pdf.multi_cell(0, 6, txt="FUENTES CONSULTADAS:")
+        pdf.cell(0, 6, txt="FUENTES CONSULTADAS:", ln=True)
         for fuente in item['fuentes']:
             fuente_limpia = fuente.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 6, txt=f"- {fuente_limpia}")
+            lineas_fuente = textwrap.wrap(f"- {fuente_limpia}", width=90)
+            for linea in lineas_fuente:
+                pdf.cell(0, 5, txt=linea, ln=True)
         
         pdf.ln(10) 
         
@@ -161,7 +180,7 @@ if st.button("Buscar") and pregunta:
                             
                         enlaces_fuentes.append(texto_fuente)
                     
-                    # 2. IA Redactora (Corregidas las comillas para evitar el SyntaxError)
+                    # 2. IA Redactora
                     prompt_sistema = (
                         "Eres un experto asesor jurista especializado en normativa educativa. "
                         "REGLA DE ORO: Responde ÚNICAMENTE utilizando la información de los fragmentos proporcionados en el contexto. "
