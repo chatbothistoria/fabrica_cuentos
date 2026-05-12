@@ -53,7 +53,6 @@ def generar_pdf(lista_interacciones, titulo_documento="Normativa Educativa"):
         
         pdf.ln(10) 
         
-    # ¡AQUÍ ESTABA EL ERROR! Lo convertimos a "bytes" puros para que Streamlit no colapse
     return bytes(pdf.output())
 
 # --- 2. CLAVES DE ACCESO ---
@@ -226,3 +225,10 @@ if submit_button and pregunta:
                             data=pdf_historial,
                             file_name="historial_normativa.pdf",
                             mime="application/pdf"
+                        )
+                
+                else:
+                    st.warning("No he encontrado nada específico en este bloque con esas palabras. Prueba a reformular la pregunta.")
+
+            except Exception as e:
+                st.error(f"Error técnico al buscar: {e}")
