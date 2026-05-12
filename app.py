@@ -15,7 +15,8 @@ if 'ultima_pregunta' not in st.session_state:
     st.session_state.ultima_pregunta = None
 if 'ultima_respuesta' not in st.session_state:
     st.session_state.ultima_respuesta = None
-
+if 'ultimas_fuentes' not in st.session_state:
+    st.session_state.ultimas_fuentes = []
 if 'historial_completo' not in st.session_state:
     st.session_state.historial_completo = []
 
@@ -108,13 +109,14 @@ with st.form(key='search_form'):
     pregunta = st.text_input("Haz tu pregunta sobre la normativa:")
     submit_button = st.form_submit_button(label="Buscar")
 
+# --- 6. PROCESAMIENTO DE LA BÚSQUEDA ---
 if submit_button and pregunta:
     if bloque_elegido == "ninguno":
         st.warning("⚠️ Por favor, selecciona un nivel educativo en el menú desplegable antes de buscar.")
     else:
         with st.spinner("Buscando en las leyes y redactando la respuesta..."):
             try:
-                # 1. Búsqueda
+                # Búsqueda
                 embedding_pregunta = model.encode(pregunta).tolist()
                 
                 respuesta_bd = supabase.rpc(
@@ -152,7 +154,7 @@ if submit_button and pregunta:
                             
                         enlaces_fuentes.append(texto_fuente)
                     
-                    # 2. IA Redactora
+                    # IA Redactora
                     prompt_sistema = (
                         "Eres un experto asesor jurista especializado en normativa educativa. "
                         "Analiza TODO el contexto proporcionado en su conjunto. "
@@ -186,49 +188,54 @@ if submit_button and pregunta:
                     fuentes_unicas = list(dict.fromkeys(enlaces_fuentes))
                     fuentes_unicas_pdf = list(dict.fromkeys(textos_fuentes_pdf))
 
-                    # 3. GUARDAMOS EN LAS DOS MEMORIAS
+                    # GUARDAMOS EN MEMORIA PARA QUE NO SE BORRE
                     st.session_state.ultima_pregunta = pregunta
                     st.session_state.ultima_respuesta = texto_final
+                    st.session_state.ultimas_fuentes = fuentes_unicas
                     
                     st.session_state.historial_completo.append({
                         "pregunta": pregunta,
                         "respuesta": texto_final,
                         "fuentes": fuentes_unicas_pdf
                     })
-
-                    # 4. Mostrar en pantalla
-                    st.write("---")
-                    st.markdown(texto_final)
-                    
-                    st.markdown("### 📚 Fuentes consultadas:")
-                    for fuente in fuentes_unicas:
-                        st.markdown(f"- 📄 {fuente}")
-                    
-                    st.write("---")
-                    
-                    # --- BOTONES DE EXPORTACIÓN A PDF ---
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        pdf_actual = generar_pdf([st.session_state.historial_completo[-1]], "Consulta de Normativa Educativa")
-                        st.download_button(
-                            label="📄 Descargar esta consulta (PDF)",
-                            data=pdf_actual,
-                            file_name="consulta_normativa.pdf",
-                            mime="application/pdf"
-                        )
-                        
-                    with col2:
-                        pdf_historial = generar_pdf(st.session_state.historial_completo, "Historial Completo de Consultas")
-                        st.download_button(
-                            label="📚 Descargar historial de chat (PDF)",
-                            data=pdf_historial,
-                            file_name="historial_normativa.pdf",
-                            mime="application/pdf"
-                        )
                 
                 else:
                     st.warning("No he encontrado nada específico en este bloque con esas palabras. Prueba a reformular la pregunta.")
 
             except Exception as e:
                 st.error(f"Error técnico al buscar: {e}")
+
+# --- 7. MOSTRAR RESULTADOS (Fuera del botón Buscar) ---
+# Al estar fuera, esto se dibujará siempre que haya algo en la memoria,
+# incluso después de pulsar el botón de descargar el PDF.
+
+if st.session_state.ultima_respuesta:
+    st.write("---")
+    st.markdown(st.session_state.ultima_respuesta)
+    
+    st.markdown("### 📚 Fuentes consultadas:")
+    for fuente in st.session_state.ultimas_fuentes:
+        st.markdown(f"- 📄 {fuente}")
+    
+    st.write("---")
+    
+    # Botones de exportación
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        pdf_actual = generar_pdf([st.session_state.historial_completo[-1]], "Consulta de Normativa Educativa")
+        st.download_button(
+            label="📄 Descargar esta consulta (PDF)",
+            data=pdf_actual,
+            file_name="consulta_normativa.pdf",
+            mime="application/pdf"
+        )
+        
+    with col2:
+        pdf_historial = generar_pdf(st.session_state.historial_completo, "Historial Completo de Consultas")
+        st.download_button(
+            label="📚 Descargar historial de chat (PDF)",
+            data=pdf_historial,
+            file_name="historial_normativa.pdf",
+            mime="application/pdf"
+        )
