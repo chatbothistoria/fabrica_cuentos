@@ -1,0 +1,8 @@
+streamlit
+supabase
+sentence-transformers
+torch
+groq
+fpdf2
+numpy
+qdrant-client
