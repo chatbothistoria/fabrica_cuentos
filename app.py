@@ -15,8 +15,8 @@ MAX_TOKENS_RESPUESTA  = 1200
 MAX_TOKENS_RAPIDO     = 380
 MAX_CONSULTAS_SESION  = 30
 MAX_CHARS_PREGUNTA    = 500
-MATCH_THRESHOLD_ALTO  = 0.55
-MATCH_THRESHOLD_BAJO  = 0.42
+MATCH_THRESHOLD_ALTO  = 0.40
+MATCH_THRESHOLD_BAJO  = 0.25
 MATCH_COUNT           = 6
 HISTORIAL_TURNOS      = 3
 COLLECTION_NAME       = "normativa"
@@ -34,7 +34,7 @@ _DEFAULTS = {
     "ultima_respuesta": None, "ultimas_fuentes": [],
     "consultas_sesion": 0, "confirmar_borrar": False,
     "feedback_pendiente": False, "feedback_pregunta": None,
-    "feedback_respuesta": None,
+    "feedback_respuesta": None, "pregunta_actual": "",
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
@@ -167,7 +167,7 @@ def expandir_y_corregir(pregunta):
     except Exception:
         return pregunta, []
 
-def _qdrant_search_rest(embedding, bloque, threshold):
+def _qdrant_search_rest(embedding, bloque, threshold=None):
     """Búsqueda semántica via REST API directa — sin dependencia de versión del cliente."""
     try:
         url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/search"
@@ -176,13 +176,14 @@ def _qdrant_search_rest(embedding, bloque, threshold):
             "vector": embedding,
             "filter": {"must": [{"key": "bloque", "match": {"value": bloque}}]},
             "limit": MATCH_COUNT,
-            "score_threshold": threshold,
             "with_payload": True,
         }
+        if threshold is not None:
+            payload["score_threshold"] = threshold
         r = requests.post(url, json=payload, headers=headers, timeout=30)
         r.raise_for_status()
         return r.json().get("result", [])
-    except Exception:
+    except Exception as e:
         return []
 
 def _qdrant_text_search_rest(pregunta_texto, bloque):
@@ -207,9 +208,9 @@ def _qdrant_text_search_rest(pregunta_texto, bloque):
 
 def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
     """Búsqueda híbrida: semántica + textual via REST API de Qdrant."""
-    # Búsqueda semántica con umbral adaptativo
+    # Búsqueda semántica con umbral adaptativo + fallback sin umbral
     resultados_v = []
-    for threshold in [MATCH_THRESHOLD_ALTO, MATCH_THRESHOLD_BAJO]:
+    for threshold in [MATCH_THRESHOLD_ALTO, MATCH_THRESHOLD_BAJO, None]:
         hits = _qdrant_search_rest(embedding, bloque, threshold)
         resultados_v = hits
         if resultados_v:
@@ -413,14 +414,14 @@ with st.expander("💡 Ver ejemplos de preguntas"):
     ]
     for ej in ejemplos:
         if st.button(ej, use_container_width=True, key=f"ej_{ej[:30]}"):
-            st.session_state["_ejemplo"] = ej
+            st.session_state["pregunta_actual"] = ej
             st.rerun()
 
-valor_inicial = st.session_state.pop("_ejemplo", "")
 with st.form(key="form_busqueda"):
     pregunta_input = st.text_area(
         "Haz tu pregunta sobre la normativa:",
-        value=valor_inicial, height=100, max_chars=MAX_CHARS_PREGUNTA,
+        value=st.session_state["pregunta_actual"],
+        height=100, max_chars=MAX_CHARS_PREGUNTA,
         placeholder="Escribe aquí tu consulta... (los errores ortográficos se corrigen automáticamente)",
     )
     submit = st.form_submit_button("🔍 Buscar", use_container_width=True)
@@ -499,6 +500,7 @@ if submit and pregunta_input:
                         st.markdown(f"- 📄 {f}")
 
                     st.session_state.ultima_pregunta   = pregunta_input
+                    st.session_state.pregunta_actual   = pregunta_input
                     st.session_state.ultima_respuesta  = texto_final
                     st.session_state.ultimas_fuentes   = fuentes_u
                     st.session_state.historial_completo.append({
