@@ -11,7 +11,7 @@ from fpdf import FPDF
 # =============================================================================
 GROQ_MODEL_PRINCIPAL  = "llama-3.3-70b-versatile"
 GROQ_MODEL_RAPIDO     = "llama-3.1-8b-instant"
-MAX_TOKENS_RESPUESTA  = 1200
+MAX_TOKENS_RESPUESTA  = 2500
 MAX_TOKENS_RAPIDO     = 380
 MAX_CHARS_PREGUNTA    = 500
 MATCH_THRESHOLD_ALTO  = 0.40
@@ -101,20 +101,46 @@ def load_model():
 
 @st.cache_data
 def cargar_enlaces():
+    """Carga el diccionario nombre_archivo → URL desde enlaces.csv.
+    Usa utf-8-sig para manejar el BOM que tiene el fichero.
+    Busca el fichero en varias ubicaciones posibles.
+    """
     enlaces = {}
-    if os.path.exists("enlaces.csv"):
-        with open("enlaces.csv", encoding="utf-8") as f:
-            for i, fila in enumerate(csv.reader(f)):
-                if i == 0:
-                    continue
-                if len(fila) >= 2:
-                    enlaces[fila[0].strip()] = fila[1].strip()
+    rutas_posibles = ["enlaces.csv", "normativa_educativa/enlaces.csv", "/app/enlaces.csv"]
+    ruta_encontrada = None
+    for ruta in rutas_posibles:
+        if os.path.exists(ruta):
+            ruta_encontrada = ruta
+            break
+    if ruta_encontrada is None:
+        return enlaces
+    try:
+        with open(ruta_encontrada, encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for fila in reader:
+                nombre = (fila.get("nombre_archivo") or "").strip()
+                url    = (fila.get("url_oficial_verificada") or "").strip()
+                if nombre and url:
+                    enlaces[nombre] = url
+    except Exception:
+        # Fallback: lectura posicional
+        try:
+            with open(ruta_encontrada, encoding="utf-8-sig") as f:
+                for i, fila in enumerate(csv.reader(f)):
+                    if i == 0:
+                        continue
+                    if len(fila) >= 2 and fila[0].strip() and fila[1].strip():
+                        enlaces[fila[0].strip()] = fila[1].strip()
+        except Exception:
+            pass
     return enlaces
 
 supabase     = init_supabase()
 model        = load_model()
 groq_client  = Groq(api_key=GROQ_API_KEY)
 enlaces      = cargar_enlaces()
+if not enlaces:
+    st.sidebar.warning("⚠️ enlaces.csv no encontrado — las fuentes no tendrán enlace.")
 
 # =============================================================================
 # FUNCIONES AUXILIARES
@@ -360,16 +386,19 @@ REGLAS DE FORMATO OBLIGATORIAS:
 - Nunca escribas bloques de texto denso sin estructura.
 - Lenguaje claro y accesible para docentes, sin jerga jurídica innecesaria.
 
+LONGITUD: las respuestas deben ser completas y detalladas. Nunca cortes una respuesta por brevedad.
+Si hay varios casos, variantes o artículos relevantes, explícalos todos.
+
 ESTRUCTURA OBLIGATORIA:
 
 ## Respuesta
-[respuesta directa y clara en 2-3 frases]
+[respuesta directa y clara, con todo el detalle necesario — mínimo 4-5 frases]
 
 ## Normativa aplicable
-[tabla o lista estructurada con artículos, documentos y páginas]
+[tabla o lista estructurada con artículos, documentos y páginas — incluye todos los casos relevantes]
 
 ## Qué debes hacer
-[pasos concretos y prácticos]
+[pasos concretos y prácticos, con todos los detalles necesarios para actuar]
 
 ---
 EJEMPLO:
