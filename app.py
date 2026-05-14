@@ -194,15 +194,17 @@ def _qdrant_search_rest(embedding, bloque, threshold=None):
         return []
 
 def _qdrant_text_search_rest(pregunta_texto, bloque):
-    """Búsqueda textual via REST API directa."""
+    """Búsqueda textual via REST API directa.
+    Si bloque=None busca en toda la colección.
+    """
     try:
         url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/scroll"
         headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
+        condiciones = [{"key": "contenido", "match": {"text": pregunta_texto}}]
+        if bloque is not None:
+            condiciones.append({"key": "bloque", "match": {"value": bloque}})
         payload = {
-            "filter": {"must": [
-                {"key": "bloque", "match": {"value": bloque}},
-                {"key": "contenido", "match": {"text": pregunta_texto}},
-            ]},
+            "filter": {"must": condiciones},
             "limit": 3,
             "with_payload": True,
             "with_vector": False,
@@ -215,34 +217,42 @@ def _qdrant_text_search_rest(pregunta_texto, bloque):
 
 def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
     """Búsqueda híbrida: semántica + textual via REST API de Qdrant.
-    
-    Estrategia de 4 niveles:
-    1. Búsqueda con filtro de bloque + umbral alto
-    2. Búsqueda con filtro de bloque + umbral bajo
-    3. Búsqueda con filtro de bloque + sin umbral
-    4. Búsqueda SIN filtro de bloque (normativa general como EBEP, LOE, LOMLOE)
+
+    Estrategia de búsqueda:
+    - bloque="general": busca en toda la colección sin filtro (EBEP, permisos, bajas...)
+    - otros bloques: busca con filtro + fallback sin filtro si los resultados son pobres
     """
-    # Niveles 1-3: con filtro de bloque
-    resultados_v = []
-    for threshold in [MATCH_THRESHOLD_ALTO, MATCH_THRESHOLD_BAJO, None]:
-        hits = _qdrant_search_rest(embedding, bloque, threshold)
-        resultados_v = hits
-        if resultados_v:
-            break
+    # Para nivel GENERAL: buscar en toda la colección sin filtro
+    if bloque == "general":
+        resultados_v = []
+        for threshold in [MATCH_THRESHOLD_ALTO, MATCH_THRESHOLD_BAJO, None]:
+            hits = _qdrant_search_rest(embedding, None, threshold)
+            resultados_v = hits
+            if resultados_v:
+                break
+        resultados_t = _qdrant_text_search_rest(pregunta_texto, None)
 
-    # Nivel 4: sin filtro de bloque si los resultados son pocos o con score bajo
-    score_max = max((h.get("score", 0) for h in resultados_v), default=0)
-    if len(resultados_v) < 3 or score_max < 0.45:
-        hits_sin_filtro = _qdrant_search_rest(embedding, None, None)
-        # Añadir los que no estén ya en resultados_v
-        ids_vistos_pre = {str(h.get("id")) for h in resultados_v}
-        for h in hits_sin_filtro:
-            if str(h.get("id")) not in ids_vistos_pre:
-                resultados_v.append(h)
-        resultados_v = sorted(resultados_v, key=lambda x: x.get("score", 0), reverse=True)
+    else:
+        # Niveles 1-3: con filtro de bloque
+        resultados_v = []
+        for threshold in [MATCH_THRESHOLD_ALTO, MATCH_THRESHOLD_BAJO, None]:
+            hits = _qdrant_search_rest(embedding, bloque, threshold)
+            resultados_v = hits
+            if resultados_v:
+                break
 
-    # Búsqueda textual
-    resultados_t = _qdrant_text_search_rest(pregunta_texto, bloque)
+        # Nivel 4: sin filtro si los resultados son pocos o con score bajo
+        score_max = max((h.get("score", 0) for h in resultados_v), default=0)
+        if len(resultados_v) < 3 or score_max < 0.45:
+            hits_sin_filtro = _qdrant_search_rest(embedding, None, None)
+            ids_vistos_pre = {str(h.get("id")) for h in resultados_v}
+            for h in hits_sin_filtro:
+                if str(h.get("id")) not in ids_vistos_pre:
+                    resultados_v.append(h)
+            resultados_v = sorted(resultados_v, key=lambda x: x.get("score", 0), reverse=True)
+
+        # Búsqueda textual
+        resultados_t = _qdrant_text_search_rest(pregunta_texto, bloque)
 
     # Fusionar resultados (ambas fuentes devuelven dicts via REST)
     ids_vistos = set()
@@ -420,23 +430,58 @@ st.title("📚 Buscador Inteligente de Normativa Educativa")
 
 bloque_elegido = st.selectbox(
     "Nivel educativo:",
-    ["ninguno", "infantil_primaria", "secundaria_bachillerato", "fp"],
+    ["ninguno", "general", "infantil_primaria", "secundaria_bachillerato", "fp"],
     format_func=lambda x: {
         "ninguno":                 "— Selecciona un nivel educativo —",
-        "infantil_primaria":       "Infantil y Primaria",
-        "secundaria_bachillerato": "Secundaria y Bachillerato",
-        "fp":                      "Formación Profesional",
+        "general":                 "📋 General (permisos, bajas, vacaciones, EBEP...)",
+        "infantil_primaria":       "🧒 Infantil y Primaria",
+        "secundaria_bachillerato": "🎓 Secundaria y Bachillerato",
+        "fp":                      "🔧 Formación Profesional",
     }[x],
 )
 
 with st.expander("💡 Ver ejemplos de preguntas"):
-    ejemplos = [
-        "¿Cuántos días de permiso tiene un docente por nacimiento de hijo?",
-        "¿Cuáles son los requisitos para solicitar una excedencia voluntaria?",
-        "¿Qué ratio de alumnos por aula establece la normativa en Primaria?",
-        "¿Cómo se tramita una baja por enfermedad de un docente interino?",
-        "¿Qué documentos necesita aportar un alumno para matricularse en 1º ESO?",
-    ]
+    # Ejemplos según el nivel seleccionado
+    if bloque_elegido == "general":
+        ejemplos = [
+            "¿Cuántos días de permiso tiene un docente por nacimiento de hijo?",
+            "¿Cuáles son los días de vacaciones anuales de un docente?",
+            "¿Cómo se tramita una baja por enfermedad de un docente?",
+            "¿Cuáles son los requisitos para solicitar una excedencia voluntaria?",
+            "¿Qué derechos sindicales tiene un funcionario docente?",
+        ]
+    elif bloque_elegido == "infantil_primaria":
+        ejemplos = [
+            "¿Qué ratio de alumnos por aula establece la normativa en Primaria?",
+            "¿Cuántas horas lectivas tiene un maestro de Primaria a la semana?",
+            "¿Cómo se organiza el horario en Educación Infantil?",
+            "¿Qué documentos necesita un alumno para matricularse en Primaria?",
+            "¿Cuáles son los criterios de promoción en Educación Primaria?",
+        ]
+    elif bloque_elegido == "secundaria_bachillerato":
+        ejemplos = [
+            "¿Qué documentos necesita aportar un alumno para matricularse en 1º ESO?",
+            "¿Cuántas materias suspensas puede tener un alumno para pasar de curso en ESO?",
+            "¿Cuáles son los criterios de titulación en Bachillerato?",
+            "¿Cómo se regula la atención a la diversidad en Secundaria?",
+            "¿Qué es el Programa de Mejora del Aprendizaje y el Rendimiento?",
+        ]
+    elif bloque_elegido == "fp":
+        ejemplos = [
+            "¿Cuántas horas tiene la Formación en Centro de Trabajo (FCT)?",
+            "¿Cuáles son los requisitos de acceso a un Ciclo Formativo de Grado Superior?",
+            "¿Cómo se evalúa la FCT en un ciclo formativo?",
+            "¿Qué es la Formación Profesional Dual?",
+            "¿Cuáles son las convalidaciones entre ciclos formativos?",
+        ]
+    else:
+        ejemplos = [
+            "¿Cuántos días de permiso tiene un docente por nacimiento de hijo?",
+            "¿Cuáles son los requisitos para solicitar una excedencia voluntaria?",
+            "¿Qué ratio de alumnos por aula establece la normativa en Primaria?",
+            "¿Cómo se tramita una baja por enfermedad de un docente interino?",
+            "¿Qué documentos necesita aportar un alumno para matricularse en 1º ESO?",
+        ]
     for ej in ejemplos:
         if st.button(ej, use_container_width=True, key=f"ej_{ej[:30]}"):
             st.session_state["pregunta_actual"] = ej
