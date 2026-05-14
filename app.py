@@ -185,12 +185,9 @@ def _qdrant_search_rest(embedding, bloque, threshold=None):
         payload["score_threshold"] = threshold
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=30)
-        if r.status_code != 200:
-            st.error(f"🔴 Qdrant error {r.status_code}: {r.text[:300]}")
-            return []
+        r.raise_for_status()
         return r.json().get("result", [])
-    except Exception as e:
-        st.error(f"🔴 Qdrant excepción: {type(e).__name__}: {e}")
+    except Exception:
         return []
 
 def _qdrant_text_search_rest(pregunta_texto, bloque):
