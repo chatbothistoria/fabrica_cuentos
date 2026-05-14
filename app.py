@@ -17,7 +17,7 @@ MAX_CONSULTAS_SESION  = 30
 MAX_CHARS_PREGUNTA    = 500
 MATCH_THRESHOLD_ALTO  = 0.40
 MATCH_THRESHOLD_BAJO  = 0.25
-MATCH_COUNT           = 6
+MATCH_COUNT           = 8
 HISTORIAL_TURNOS      = 3
 COLLECTION_NAME       = "normativa"
 
@@ -168,19 +168,22 @@ def expandir_y_corregir(pregunta):
         return pregunta, []
 
 def _qdrant_search_rest(embedding, bloque, threshold=None):
-    """Búsqueda semántica via REST API directa — sin dependencia de versión del cliente."""
+    """Búsqueda semántica via REST API directa.
+    Si bloque=None busca en toda la colección sin filtro (normativa general).
+    """
     url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/search"
     headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
-    # Convertir a lista plana de floats Python (JSON-serializable)
     if hasattr(embedding, 'tolist'):
         embedding = embedding.tolist()
     embedding = [float(x) for x in embedding]
     payload = {
         "vector": embedding,
-        "filter": {"must": [{"key": "bloque", "match": {"value": bloque}}]},
         "limit": MATCH_COUNT,
         "with_payload": True,
     }
+    # Solo añadir filtro si se especifica un bloque
+    if bloque is not None:
+        payload["filter"] = {"must": [{"key": "bloque", "match": {"value": bloque}}]}
     if threshold is not None:
         payload["score_threshold"] = threshold
     try:
@@ -211,14 +214,32 @@ def _qdrant_text_search_rest(pregunta_texto, bloque):
         return []
 
 def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
-    """Búsqueda híbrida: semántica + textual via REST API de Qdrant."""
-    # Búsqueda semántica con umbral adaptativo + fallback sin umbral
+    """Búsqueda híbrida: semántica + textual via REST API de Qdrant.
+    
+    Estrategia de 4 niveles:
+    1. Búsqueda con filtro de bloque + umbral alto
+    2. Búsqueda con filtro de bloque + umbral bajo
+    3. Búsqueda con filtro de bloque + sin umbral
+    4. Búsqueda SIN filtro de bloque (normativa general como EBEP, LOE, LOMLOE)
+    """
+    # Niveles 1-3: con filtro de bloque
     resultados_v = []
     for threshold in [MATCH_THRESHOLD_ALTO, MATCH_THRESHOLD_BAJO, None]:
         hits = _qdrant_search_rest(embedding, bloque, threshold)
         resultados_v = hits
         if resultados_v:
             break
+
+    # Nivel 4: sin filtro de bloque si los resultados son pocos o con score bajo
+    score_max = max((h.get("score", 0) for h in resultados_v), default=0)
+    if len(resultados_v) < 3 or score_max < 0.45:
+        hits_sin_filtro = _qdrant_search_rest(embedding, None, None)
+        # Añadir los que no estén ya en resultados_v
+        ids_vistos_pre = {str(h.get("id")) for h in resultados_v}
+        for h in hits_sin_filtro:
+            if str(h.get("id")) not in ids_vistos_pre:
+                resultados_v.append(h)
+        resultados_v = sorted(resultados_v, key=lambda x: x.get("score", 0), reverse=True)
 
     # Búsqueda textual
     resultados_t = _qdrant_text_search_rest(pregunta_texto, bloque)
@@ -317,7 +338,7 @@ Eres un asesor jurídico experto en normativa educativa española \
 REGLAS ESTRICTAS:
 - Responde SOLO con la información de los <fragmento> proporcionados.
 - NUNCA inventes, supongas ni cites normativas que no aparezcan en el contexto.
-- Si la información es insuficiente, indícalo claramente.
+- Si la información es insuficiente en los fragmentos, indica qué tipo de normativa regula esa materia (ej: EBEP, convenio colectivo, normativa autonómica) para orientar al usuario, pero nunca inventes artículos concretos.
 - Cita siempre el documento y la página a la que te refieres.
 
 FORMATO OBLIGATORIO:
