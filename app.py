@@ -1,10 +1,8 @@
 import streamlit as st
 from supabase import create_client
-from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchText
 from sentence_transformers import SentenceTransformer
 from groq import Groq
-import csv, os, json, textwrap, time
+import csv, os, json, textwrap, time, requests
 import numpy as np
 from fpdf import FPDF
 
@@ -98,10 +96,6 @@ def init_supabase():
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @st.cache_resource
-def init_qdrant():
-    return QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-
-@st.cache_resource
 def load_model():
     # ⚠️ NO cambiar sin re-vectorizar los documentos en Qdrant.
     return SentenceTransformer("paraphrase-multilingual-mpnet-base-v2")
@@ -119,7 +113,6 @@ def cargar_enlaces():
     return enlaces
 
 supabase     = init_supabase()
-qdrant       = init_qdrant()
 model        = load_model()
 groq_client  = Groq(api_key=GROQ_API_KEY)
 enlaces      = cargar_enlaces()
@@ -174,70 +167,86 @@ def expandir_y_corregir(pregunta):
     except Exception:
         return pregunta, []
 
-def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
-    """Búsqueda híbrida: semántica en Qdrant + textual en Qdrant."""
-    bloque_filter = Filter(must=[FieldCondition(key="bloque", match=MatchValue(value=bloque))])
+def _qdrant_search_rest(embedding, bloque, threshold):
+    """Búsqueda semántica via REST API directa — sin dependencia de versión del cliente."""
+    try:
+        url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/search"
+        headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
+        payload = {
+            "vector": embedding,
+            "filter": {"must": [{"key": "bloque", "match": {"value": bloque}}]},
+            "limit": MATCH_COUNT,
+            "score_threshold": threshold,
+            "with_payload": True,
+        }
+        r = requests.post(url, json=payload, headers=headers, timeout=30)
+        r.raise_for_status()
+        return r.json().get("result", [])
+    except Exception:
+        return []
 
+def _qdrant_text_search_rest(pregunta_texto, bloque):
+    """Búsqueda textual via REST API directa."""
+    try:
+        url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/scroll"
+        headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
+        payload = {
+            "filter": {"must": [
+                {"key": "bloque", "match": {"value": bloque}},
+                {"key": "contenido", "match": {"text": pregunta_texto}},
+            ]},
+            "limit": 3,
+            "with_payload": True,
+            "with_vector": False,
+        }
+        r = requests.post(url, json=payload, headers=headers, timeout=30)
+        r.raise_for_status()
+        return r.json().get("result", {}).get("points", [])
+    except Exception:
+        return []
+
+def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
+    """Búsqueda híbrida: semántica + textual via REST API de Qdrant."""
     # Búsqueda semántica con umbral adaptativo
     resultados_v = []
     for threshold in [MATCH_THRESHOLD_ALTO, MATCH_THRESHOLD_BAJO]:
-        hits = qdrant.search(
-            collection_name=COLLECTION_NAME,
-            query_vector=embedding,
-            query_filter=bloque_filter,
-            limit=MATCH_COUNT,
-            score_threshold=threshold,
-            with_payload=True,
-        )
+        hits = _qdrant_search_rest(embedding, bloque, threshold)
         resultados_v = hits
         if resultados_v:
             break
 
-    # Búsqueda textual en Qdrant
-    resultados_t = []
-    try:
-        text_filter = Filter(must=[
-            FieldCondition(key="bloque", match=MatchValue(value=bloque)),
-            FieldCondition(key="contenido", match=MatchText(text=pregunta_texto)),
-        ])
-        scroll_result = qdrant.scroll(
-            collection_name=COLLECTION_NAME,
-            scroll_filter=text_filter,
-            limit=3,
-            with_payload=True,
-            with_vectors=False,
-        )
-        resultados_t = scroll_result[0]
-    except Exception:
-        pass
+    # Búsqueda textual
+    resultados_t = _qdrant_text_search_rest(pregunta_texto, bloque)
 
-    # Convertir a formato común y fusionar
+    # Fusionar resultados (ambas fuentes devuelven dicts via REST)
     ids_vistos = set()
     combinados = []
 
     for hit in resultados_v:
-        rid = str(hit.id)
+        rid = str(hit.get("id", ""))
         if rid not in ids_vistos:
             ids_vistos.add(rid)
+            payload = hit.get("payload", {})
             combinados.append({
-                "id": hit.id,
-                "contenido":      hit.payload.get("contenido", ""),
-                "nombre_archivo": hit.payload.get("nombre_archivo", ""),
-                "pagina_num":     hit.payload.get("pagina_num", 0),
-                "bloque":         hit.payload.get("bloque", ""),
-                "similarity":     hit.score,
+                "id":             rid,
+                "contenido":      payload.get("contenido", ""),
+                "nombre_archivo": payload.get("nombre_archivo", ""),
+                "pagina_num":     payload.get("pagina_num", 0),
+                "bloque":         payload.get("bloque", ""),
+                "similarity":     hit.get("score", 0.0),
             })
 
     for record in resultados_t:
-        rid = str(record.id)
+        rid = str(record.get("id", ""))
         if rid not in ids_vistos:
             ids_vistos.add(rid)
+            payload = record.get("payload", {})
             combinados.append({
-                "id": record.id,
-                "contenido":      record.payload.get("contenido", ""),
-                "nombre_archivo": record.payload.get("nombre_archivo", ""),
-                "pagina_num":     record.payload.get("pagina_num", 0),
-                "bloque":         record.payload.get("bloque", ""),
+                "id":             rid,
+                "contenido":      payload.get("contenido", ""),
+                "nombre_archivo": payload.get("nombre_archivo", ""),
+                "pagina_num":     payload.get("pagina_num", 0),
+                "bloque":         payload.get("bloque", ""),
                 "similarity":     1.0,
             })
 
