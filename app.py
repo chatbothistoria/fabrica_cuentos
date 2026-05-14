@@ -169,21 +169,28 @@ def expandir_y_corregir(pregunta):
 
 def _qdrant_search_rest(embedding, bloque, threshold=None):
     """Búsqueda semántica via REST API directa — sin dependencia de versión del cliente."""
+    url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/search"
+    headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
+    # Convertir a lista plana de floats Python (JSON-serializable)
+    if hasattr(embedding, 'tolist'):
+        embedding = embedding.tolist()
+    embedding = [float(x) for x in embedding]
+    payload = {
+        "vector": embedding,
+        "filter": {"must": [{"key": "bloque", "match": {"value": bloque}}]},
+        "limit": MATCH_COUNT,
+        "with_payload": True,
+    }
+    if threshold is not None:
+        payload["score_threshold"] = threshold
     try:
-        url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/search"
-        headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
-        payload = {
-            "vector": embedding,
-            "filter": {"must": [{"key": "bloque", "match": {"value": bloque}}]},
-            "limit": MATCH_COUNT,
-            "with_payload": True,
-        }
-        if threshold is not None:
-            payload["score_threshold"] = threshold
         r = requests.post(url, json=payload, headers=headers, timeout=30)
-        r.raise_for_status()
+        if r.status_code != 200:
+            st.error(f"🔴 Qdrant error {r.status_code}: {r.text[:300]}")
+            return []
         return r.json().get("result", [])
     except Exception as e:
+        st.error(f"🔴 Qdrant excepción: {type(e).__name__}: {e}")
         return []
 
 def _qdrant_text_search_rest(pregunta_texto, bloque):
