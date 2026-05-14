@@ -13,7 +13,6 @@ GROQ_MODEL_PRINCIPAL  = "llama-3.3-70b-versatile"
 GROQ_MODEL_RAPIDO     = "llama-3.1-8b-instant"
 MAX_TOKENS_RESPUESTA  = 1200
 MAX_TOKENS_RAPIDO     = 380
-MAX_CONSULTAS_SESION  = 30
 MAX_CHARS_PREGUNTA    = 500
 MATCH_THRESHOLD_ALTO  = 0.40
 MATCH_THRESHOLD_BAJO  = 0.25
@@ -32,7 +31,7 @@ st.set_page_config(page_title="Normativa Educativa CyL", page_icon="📚", layou
 _DEFAULTS = {
     "historial_completo": [], "ultima_pregunta": None,
     "ultima_respuesta": None, "ultimas_fuentes": [],
-    "consultas_sesion": 0, "confirmar_borrar": False,
+    "confirmar_borrar": False,
     "feedback_pendiente": False, "feedback_pregunta": None,
     "feedback_respuesta": None, "pregunta_actual": "",
 }
@@ -333,10 +332,12 @@ def construir_contexto_xml(fragmentos, enlaces_dict):
         )
         url = enlaces_dict.get(nombre)
         if url:
-            links_screen.append(f"[{nombre_l} (Pág. {pagina})]({url}#page={pagina})")
+            # #page=N abre el PDF directamente en la página indicada en la mayoría de navegadores
+            link = f"{url}#page={pagina}"
+            links_screen.append(f"[{nombre_l} — pág. {pagina}]({link})")
             fuentes_pdf.append(f"{nombre_l} (Pág. {pagina}) — {url}")
         else:
-            links_screen.append(f"**{nombre_l}** (Pág. {pagina})")
+            links_screen.append(f"**{nombre_l}** — pág. {pagina} *(enlace no disponible)*")
             fuentes_pdf.append(f"{nombre_l} (Pág. {pagina})")
     return contexto_xml, links_screen, fuentes_pdf
 
@@ -346,37 +347,52 @@ Eres un asesor jurídico experto en normativa educativa española \
 (legislación estatal y de Castilla y León).
 
 REGLAS ESTRICTAS:
-- Responde SOLO con la información de los <fragmento> proporcionados.
-- NUNCA inventes, supongas ni cites normativas que no aparezcan en el contexto.
-- Si la información es insuficiente en los fragmentos, indica qué tipo de normativa regula esa materia (ej: EBEP, convenio colectivo, normativa autonómica) para orientar al usuario, pero nunca inventes artículos concretos.
-- Cita siempre el documento y la página a la que te refieres.
+- Responde SOLO con información de los <fragmento> proporcionados.
+- NUNCA inventes ni cites normativas que no aparezcan en el contexto.
+- Si la información es insuficiente, indica qué tipo de normativa regula esa materia para orientar al usuario, sin inventar artículos concretos.
+- Cita siempre el documento y la página exacta.
 
-FORMATO OBLIGATORIO:
+REGLAS DE FORMATO OBLIGATORIAS:
+- Usa ## y ### para estructurar secciones.
+- Cuando haya varios casos o variantes (distintos días según parentesco, distintos plazos...) usa SIEMPRE una tabla Markdown con columnas claras.
+- Para listas de requisitos o pasos usa viñetas con guion (-).
+- Separa secciones con línea en blanco.
+- Nunca escribas bloques de texto denso sin estructura.
+- Lenguaje claro y accesible para docentes, sin jerga jurídica innecesaria.
 
-**Resumen:** [respuesta directa en 2-3 frases]
+ESTRUCTURA OBLIGATORIA:
 
-**Normativa aplicable:**
-[artículos y normas con referencia exacta al fragmento, documento y página]
+## Respuesta
+[respuesta directa y clara en 2-3 frases]
 
-**Implicaciones prácticas:**
-[qué debe hacer o tener en cuenta el docente, equipo directivo o familia]
+## Normativa aplicable
+[tabla o lista estructurada con artículos, documentos y páginas]
+
+## Qué debes hacer
+[pasos concretos y prácticos]
 
 ---
 EJEMPLO:
 
 Pregunta: ¿Cuántos días de permiso tiene un docente por fallecimiento de familiar?
 
-**Resumen:** Los docentes tienen derecho a permiso retribuido por fallecimiento \
-de familiar, con duración variable según el grado de parentesco y la distancia.
+## Respuesta
+Los docentes tienen derecho a permiso retribuido por fallecimiento de familiar.
+La duración depende del grado de parentesco y de si hay desplazamiento.
 
-**Normativa aplicable:**
-Según el EBEP, RD Legislativo 5/2015 (fragmento 2, pág. 14), artículo 48.a): \
-3 días hábiles para familiares de primer grado en la misma localidad, \
-5 días si requiere desplazamiento.
+## Normativa aplicable
 
-**Implicaciones prácticas:**
-El docente comunica el permiso a la dirección aportando el certificado. \
-Los días son hábiles: no cuentan fines de semana ni festivos."""
+| Parentesco | Sin desplazamiento | Con desplazamiento |
+|---|---|---|
+| 1er grado (cónyuge, hijos, padres) | 3 días hábiles | 5 días hábiles |
+| 2º grado (hermanos, abuelos, nietos) | 2 días hábiles | 4 días hábiles |
+
+Fuente: EBEP, RD Legislativo 5/2015, artículo 48.a) — pág. 14
+
+## Qué debes hacer
+- Comunica el permiso a dirección lo antes posible.
+- Aporta el certificado de defunción al reincorporarte.
+- Los días son **hábiles**: no cuentan fines de semana ni festivos."""
 
     mensajes = [{"role": "system", "content": PROMPT_SISTEMA}]
     ultimos = st.session_state.historial_completo[-HISTORIAL_TURNOS:]
@@ -415,13 +431,8 @@ def guardar_feedback(pregunta, respuesta, util):
 # =============================================================================
 with st.sidebar:
     st.markdown("### 📊 Sesión actual")
-    n = st.session_state.consultas_sesion
-    st.progress(min(n / MAX_CONSULTAS_SESION, 1.0),
-                text=f"{n} / {MAX_CONSULTAS_SESION} consultas usadas")
     if st.session_state.historial_completo:
-        st.caption(f"Consultas en historial: {len(st.session_state.historial_completo)}")
-    st.divider()
-    st.caption("ℹ️ El límite se restablece al cerrar y reabrir el navegador.")
+        st.caption(f"Consultas realizadas: {len(st.session_state.historial_completo)}")
 
 # =============================================================================
 # INTERFAZ — CUERPO PRINCIPAL
@@ -440,59 +451,13 @@ bloque_elegido = st.selectbox(
     }[x],
 )
 
-with st.expander("💡 Ver ejemplos de preguntas"):
-    # Ejemplos según el nivel seleccionado
-    if bloque_elegido == "general":
-        ejemplos = [
-            "¿Cuántos días de permiso tiene un docente por nacimiento de hijo?",
-            "¿Cuáles son los días de vacaciones anuales de un docente?",
-            "¿Cómo se tramita una baja por enfermedad de un docente?",
-            "¿Cuáles son los requisitos para solicitar una excedencia voluntaria?",
-            "¿Qué derechos sindicales tiene un funcionario docente?",
-        ]
-    elif bloque_elegido == "infantil_primaria":
-        ejemplos = [
-            "¿Qué ratio de alumnos por aula establece la normativa en Primaria?",
-            "¿Cuántas horas lectivas tiene un maestro de Primaria a la semana?",
-            "¿Cómo se organiza el horario en Educación Infantil?",
-            "¿Qué documentos necesita un alumno para matricularse en Primaria?",
-            "¿Cuáles son los criterios de promoción en Educación Primaria?",
-        ]
-    elif bloque_elegido == "secundaria_bachillerato":
-        ejemplos = [
-            "¿Qué documentos necesita aportar un alumno para matricularse en 1º ESO?",
-            "¿Cuántas materias suspensas puede tener un alumno para pasar de curso en ESO?",
-            "¿Cuáles son los criterios de titulación en Bachillerato?",
-            "¿Cómo se regula la atención a la diversidad en Secundaria?",
-            "¿Qué es el Programa de Mejora del Aprendizaje y el Rendimiento?",
-        ]
-    elif bloque_elegido == "fp":
-        ejemplos = [
-            "¿Cuántas horas tiene la Formación en Centro de Trabajo (FCT)?",
-            "¿Cuáles son los requisitos de acceso a un Ciclo Formativo de Grado Superior?",
-            "¿Cómo se evalúa la FCT en un ciclo formativo?",
-            "¿Qué es la Formación Profesional Dual?",
-            "¿Cuáles son las convalidaciones entre ciclos formativos?",
-        ]
-    else:
-        ejemplos = [
-            "¿Cuántos días de permiso tiene un docente por nacimiento de hijo?",
-            "¿Cuáles son los requisitos para solicitar una excedencia voluntaria?",
-            "¿Qué ratio de alumnos por aula establece la normativa en Primaria?",
-            "¿Cómo se tramita una baja por enfermedad de un docente interino?",
-            "¿Qué documentos necesita aportar un alumno para matricularse en 1º ESO?",
-        ]
-    for ej in ejemplos:
-        if st.button(ej, use_container_width=True, key=f"ej_{ej[:30]}"):
-            st.session_state["pregunta_actual"] = ej
-            st.rerun()
 
 with st.form(key="form_busqueda"):
     pregunta_input = st.text_area(
         "Haz tu pregunta sobre la normativa:",
-        value=st.session_state["pregunta_actual"],
+        value=st.session_state.get("pregunta_actual", ""),
         height=100, max_chars=MAX_CHARS_PREGUNTA,
-        placeholder="Escribe aquí tu consulta... (los errores ortográficos se corrigen automáticamente)",
+        placeholder="Escribe tu consulta sobre normativa educativa...",
     )
     submit = st.form_submit_button("🔍 Buscar", use_container_width=True)
 
@@ -503,9 +468,6 @@ if submit and pregunta_input:
 
     if bloque_elegido == "ninguno":
         st.warning("⚠️ Selecciona un nivel educativo antes de buscar.")
-
-    elif st.session_state.consultas_sesion >= MAX_CONSULTAS_SESION:
-        st.error(f"Has alcanzado el límite de {MAX_CONSULTAS_SESION} consultas por sesión.")
 
     else:
         valido, msg_error = validar_input(pregunta_input)
@@ -567,7 +529,7 @@ if submit and pregunta_input:
                     fuentes_up = list(dict.fromkeys(fuentes_pdf))
                     st.markdown("### 📚 Fuentes consultadas:")
                     for f in fuentes_u:
-                        st.markdown(f"- 📄 {f}")
+                        st.markdown(f"- 📄 {f}", unsafe_allow_html=False)
 
                     st.session_state.ultima_pregunta   = pregunta_input
                     st.session_state.pregunta_actual   = pregunta_input
@@ -583,7 +545,6 @@ if submit and pregunta_input:
                         st.session_state.historial_completo = \
                             st.session_state.historial_completo[-20:]
 
-                    st.session_state.consultas_sesion  += 1
                     st.session_state.feedback_pendiente = True
                     st.session_state.feedback_pregunta  = pregunta_input
                     st.session_state.feedback_respuesta = texto_final
@@ -603,7 +564,7 @@ elif st.session_state.ultima_respuesta:
     st.markdown(st.session_state.ultima_respuesta)
     st.markdown("### 📚 Fuentes consultadas:")
     for f in st.session_state.ultimas_fuentes:
-        st.markdown(f"- 📄 {f}")
+        st.markdown(f"- 📄 {f}", unsafe_allow_html=False)
 
 # =============================================================================
 # FEEDBACK
