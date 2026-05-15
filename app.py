@@ -16,7 +16,7 @@ MAX_TOKENS_RAPIDO     = 380
 MAX_CHARS_PREGUNTA    = 500
 MATCH_THRESHOLD_ALTO  = 0.40
 MATCH_THRESHOLD_BAJO  = 0.25
-MATCH_COUNT           = 8
+MATCH_COUNT           = 15
 HISTORIAL_TURNOS      = 3
 COLLECTION_NAME       = "normativa"
 
@@ -173,12 +173,18 @@ def expandir_y_corregir(pregunta):
         resp = groq_client.chat.completions.create(
             model=GROQ_MODEL_RAPIDO,
             messages=[{"role": "user", "content": (
-                "Eres un asistente especializado en normativa educativa española.\n"
-                "Dado el siguiente texto:\n"
-                "  1. Corrige todos los errores ortográficos y tipográficos\n"
-                "  2. Genera 3 reformulaciones usando terminología jurídica y educativa\n\n"
-                "Responde ÚNICAMENTE con JSON válido, sin texto adicional:\n"
-                '{"corregida": "texto corregido", "reformulaciones": ["opcion1", "opcion2", "opcion3"]}\n\n'
+                "Eres un experto en normativa educativa y derecho administrativo español.\n"
+                "Dado el siguiente texto de un docente o familiar:\n"
+                "  1. Corrige errores ortográficos\n"
+                "  2. Genera 3 reformulaciones MUY DISTINTAS para mejorar la búsqueda en un RAG jurídico:\n"
+                "     - opcion1: reformulación con terminología jurídica exacta del BOE/BOCYL\n"
+                "       (usa: Artículo, párrafo, apartado, días hábiles, consanguinidad, etc.)\n"
+                "     - opcion2: reformulación desde el punto de vista del funcionario docente\n"
+                "       (usa vocabulario administrativo: solicitar, conceder, autorizar, derecho)\n"
+                "     - opcion3: reformulación que mencione el tipo de norma relevante\n"
+                "       (EBEP, LOE, LOMLOE, Decreto, Orden EDU, Resolución, etc.)\n\n"
+                "Responde ÚNICAMENTE con JSON válido:\n"
+                '{"corregida": "texto corregido", "reformulaciones": ["boe_bocyl", "funcionario", "norma"]}\n\n'
                 f"Texto: {pregunta}"
             )}],
             temperature=0.2,
@@ -194,7 +200,7 @@ def expandir_y_corregir(pregunta):
 
 def _qdrant_search_rest(embedding, bloque, threshold=None):
     """Búsqueda semántica via REST API directa.
-    Si bloque=None busca en toda la colección sin filtro (normativa general).
+    Si bloque=None o bloque="general" busca en toda la colección sin filtro.
     """
     url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/search"
     headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
@@ -206,8 +212,8 @@ def _qdrant_search_rest(embedding, bloque, threshold=None):
         "limit": MATCH_COUNT,
         "with_payload": True,
     }
-    # Solo añadir filtro si se especifica un bloque
-    if bloque is not None:
+    # bloque="general" o None → sin filtro (busca en toda la colección)
+    if bloque is not None and bloque != "general":
         payload["filter"] = {"must": [{"key": "bloque", "match": {"value": bloque}}]}
     if threshold is not None:
         payload["score_threshold"] = threshold
@@ -220,13 +226,13 @@ def _qdrant_search_rest(embedding, bloque, threshold=None):
 
 def _qdrant_text_search_rest(pregunta_texto, bloque):
     """Búsqueda textual via REST API directa.
-    Si bloque=None busca en toda la colección.
+    Si bloque=None o bloque="general" busca en toda la colección.
     """
     try:
         url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/scroll"
         headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
         condiciones = [{"key": "contenido", "match": {"text": pregunta_texto}}]
-        if bloque is not None:
+        if bloque is not None and bloque != "general":
             condiciones.append({"key": "bloque", "match": {"value": bloque}})
         payload = {
             "filter": {"must": condiciones},
@@ -279,18 +285,24 @@ def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
         # Búsqueda textual
         resultados_t = _qdrant_text_search_rest(pregunta_texto, bloque)
 
-    # Fusionar resultados (ambas fuentes devuelven dicts via REST)
+    # Fusionar y deduplicar por contenido (evita el mismo artículo 3 veces)
+    vistos_contenido = set()
     ids_vistos = set()
     combinados = []
 
     for hit in resultados_v:
         rid = str(hit.get("id", ""))
-        if rid not in ids_vistos:
+        payload = hit.get("payload", {})
+        contenido = payload.get("contenido", "")
+        # Clave de deduplicación: primeros 120 chars del contenido
+        clave = contenido[:120].strip()
+        if rid not in ids_vistos and clave not in vistos_contenido:
             ids_vistos.add(rid)
-            payload = hit.get("payload", {})
+            if clave:
+                vistos_contenido.add(clave)
             combinados.append({
                 "id":             rid,
-                "contenido":      payload.get("contenido", ""),
+                "contenido":      contenido,
                 "nombre_archivo": payload.get("nombre_archivo", ""),
                 "pagina_num":     payload.get("pagina_num", 0),
                 "bloque":         payload.get("bloque", ""),
@@ -299,19 +311,23 @@ def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
 
     for record in resultados_t:
         rid = str(record.get("id", ""))
-        if rid not in ids_vistos:
+        payload = record.get("payload", {})
+        contenido = payload.get("contenido", "")
+        clave = contenido[:120].strip()
+        if rid not in ids_vistos and clave not in vistos_contenido:
             ids_vistos.add(rid)
-            payload = record.get("payload", {})
+            if clave:
+                vistos_contenido.add(clave)
             combinados.append({
                 "id":             rid,
-                "contenido":      payload.get("contenido", ""),
+                "contenido":      contenido,
                 "nombre_archivo": payload.get("nombre_archivo", ""),
                 "pagina_num":     payload.get("pagina_num", 0),
                 "bloque":         payload.get("bloque", ""),
                 "similarity":     1.0,
             })
 
-    return combinados[:MATCH_COUNT + 2]
+    return combinados[:MATCH_COUNT]
 
 def reranquear(pregunta, fragmentos):
     if len(fragmentos) <= 2:
@@ -372,33 +388,35 @@ def construir_mensajes(pregunta, contexto_xml):
 Eres un asesor jurídico experto en normativa educativa española \
 (legislación estatal y de Castilla y León).
 
-REGLAS ESTRICTAS:
-- Responde SOLO con información de los <fragmento> proporcionados.
-- NUNCA inventes ni cites normativas que no aparezcan en el contexto.
-- Si la información es insuficiente, indica qué tipo de normativa regula esa materia para orientar al usuario, sin inventar artículos concretos.
-- Cita siempre el documento y la página exacta.
+FUENTES DE INFORMACIÓN:
+Dispones de dos fuentes:
+1. FRAGMENTOS NORMATIVOS: los <fragmento> proporcionados con el contexto.
+2. CONOCIMIENTO JURÍDICO PROPIO: tu formación en derecho educativo español.
+
+REGLAS:
+- Usa SIEMPRE los fragmentos como fuente principal.
+- Si los fragmentos contienen la respuesta, cítala con documento y página exactos.
+- Si los fragmentos son parciales o insuficientes, COMPLETA con tu conocimiento jurídico general pero indícalo claramente con: *(información general — verifica en la normativa oficial)*
+- NUNCA inventes artículos concretos ni números específicos que no estén en los fragmentos.
+- Cita el documento y la página de cada afirmación que extraigas de los fragmentos.
 
 REGLAS DE FORMATO OBLIGATORIAS:
 - Usa ## y ### para estructurar secciones.
-- Cuando haya varios casos o variantes (distintos días según parentesco, distintos plazos...) usa SIEMPRE una tabla Markdown con columnas claras.
+- Cuando haya varios casos (distintos días según parentesco, distintos plazos...) usa SIEMPRE una tabla Markdown.
 - Para listas de requisitos o pasos usa viñetas con guion (-).
-- Separa secciones con línea en blanco.
-- Nunca escribas bloques de texto denso sin estructura.
-- Lenguaje claro y accesible para docentes, sin jerga jurídica innecesaria.
-
-LONGITUD: las respuestas deben ser completas y detalladas. Nunca cortes una respuesta por brevedad.
-Si hay varios casos, variantes o artículos relevantes, explícalos todos.
+- Lenguaje claro y accesible para docentes, sin jerga innecesaria.
+- Respuestas completas y detalladas — nunca cortes por brevedad.
 
 ESTRUCTURA OBLIGATORIA:
 
 ## Respuesta
-[respuesta directa y clara, con todo el detalle necesario — mínimo 4-5 frases]
+[respuesta directa, clara y completa — mínimo 4-5 frases con todo el detalle relevante]
 
 ## Normativa aplicable
-[tabla o lista estructurada con artículos, documentos y páginas — incluye todos los casos relevantes]
+[tabla o lista con artículos, documentos y páginas — todos los casos relevantes]
 
 ## Qué debes hacer
-[pasos concretos y prácticos, con todos los detalles necesarios para actuar]
+[pasos concretos y prácticos para el docente, familia o equipo directivo]
 
 ---
 EJEMPLO:
@@ -406,22 +424,26 @@ EJEMPLO:
 Pregunta: ¿Cuántos días de permiso tiene un docente por fallecimiento de familiar?
 
 ## Respuesta
-Los docentes tienen derecho a permiso retribuido por fallecimiento de familiar.
-La duración depende del grado de parentesco y de si hay desplazamiento.
+Los docentes funcionarios tienen derecho a permiso retribuido por fallecimiento,
+accidente o enfermedad grave de un familiar. La duración varía según el grado
+de parentesco y si se requiere desplazamiento fuera de la localidad.
+Este derecho está reconocido tanto en la normativa estatal (EBEP) como en los
+acuerdos de función pública de Castilla y León.
 
 ## Normativa aplicable
 
 | Parentesco | Sin desplazamiento | Con desplazamiento |
 |---|---|---|
-| 1er grado (cónyuge, hijos, padres) | 3 días hábiles | 5 días hábiles |
-| 2º grado (hermanos, abuelos, nietos) | 2 días hábiles | 4 días hábiles |
+| 1er grado: cónyuge, hijos, padres | 3 días hábiles | 5 días hábiles |
+| 2º grado: hermanos, abuelos, nietos, suegros | 2 días hábiles | 4 días hábiles |
 
 Fuente: EBEP, RD Legislativo 5/2015, artículo 48.a) — pág. 14
 
 ## Qué debes hacer
-- Comunica el permiso a dirección lo antes posible.
-- Aporta el certificado de defunción al reincorporarte.
-- Los días son **hábiles**: no cuentan fines de semana ni festivos."""
+- Comunica el permiso a la dirección del centro lo antes posible.
+- Aporta el certificado de defunción o el parte médico al reincorporarte.
+- Los días cuentan como **hábiles**: no se incluyen fines de semana ni festivos.
+- Si hay desplazamiento, guarda los justificantes de viaje por si se requieren."""
 
     mensajes = [{"role": "system", "content": PROMPT_SISTEMA}]
     ultimos = st.session_state.historial_completo[-HISTORIAL_TURNOS:]
