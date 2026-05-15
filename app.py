@@ -97,7 +97,7 @@ def init_supabase():
 @st.cache_resource
 def load_model():
     # ⚠️ NO cambiar sin re-vectorizar los documentos en Qdrant.
-    return SentenceTransformer("paraphrase-multilingual-mpnet-base-v2")
+    return SentenceTransformer("intfloat/multilingual-e5-large")
 
 @st.cache_data
 def cargar_enlaces():
@@ -535,9 +535,11 @@ if submit and pregunta_input:
                     st.info(f"✏️ He corregido tu consulta a: **{pregunta_corregida}**")
 
                 with st.spinner("🔎 Buscando en la normativa..."):
+                    # e5 requiere prefijo "query: " en las consultas
                     todas = [pregunta_corregida] + reformulaciones[:2]
                     embedding_avg = np.mean(
-                        [model.encode(q) for q in todas], axis=0
+                        [model.encode('query: ' + q, normalize_embeddings=True)
+                         for q in todas], axis=0
                     ).tolist()
                     resultados = buscar_normativa_hibrida(
                         embedding_avg, pregunta_corregida, bloque_elegido
