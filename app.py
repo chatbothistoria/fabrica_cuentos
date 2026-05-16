@@ -97,7 +97,7 @@ def init_supabase():
 @st.cache_resource
 def load_model():
     # ⚠️ NO cambiar sin re-vectorizar los documentos en Qdrant.
-    return SentenceTransformer("intfloat/multilingual-e5-large")
+    return SentenceTransformer("intfloat/multilingual-e5-base")
 
 @st.cache_data
 def cargar_enlaces():
