@@ -701,13 +701,7 @@ if submit and pregunta_input:
                                 len(resultados), (time.time()-t0)*1000, True)
 
             except Exception as e:
-                err = str(e).lower()
-                if "429" in err or "rate_limit" in err or "quota" in err or "exhausted" in err:
-                    st.error("⏳ Límite de la API de Google alcanzado. Inténtalo en unos minutos.")
-                elif "api_key" in err or "invalid" in err or "api key" in err:
-                    st.error("❌ API key de Google no válida. Revisa los Secrets de Streamlit.")
-                else:
-                    st.error(f"Error técnico: {e}")
+                st.error(f"ERROR REAL: {e}")
 
 elif st.session_state.ultima_respuesta:
     st.write("---")
