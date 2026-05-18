@@ -219,7 +219,7 @@ def extraer_terminos_clave(pregunta: str) -> list[str]:
     import re
     # Normalizar
     texto = pregunta.lower().strip("¿?.,;:")
-    texto = re.sub(r"[¿?.,;:()\[\]{}"'!]", " ", texto)
+    texto = re.sub(r"[¿?.,;:()\.\[\]{}!]", " ", texto)
     palabras = [p for p in texto.split() if len(p) > 2 and p not in _STOPWORDS]
 
     terminos = []
