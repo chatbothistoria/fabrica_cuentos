@@ -9,8 +9,8 @@ from fpdf import FPDF
 # =============================================================================
 # CONFIGURACIÓN CENTRAL
 # =============================================================================
-GEMINI_MODEL_PRINCIPAL = "gemini-2.0-flash"
-GEMINI_MODEL_RAPIDO    = "gemini-2.0-flash"
+GEMINI_MODEL_PRINCIPAL = "gemini-1.5-flash"
+GEMINI_MODEL_RAPIDO    = "gemini-1.5-flash"
 MAX_TOKENS_RESPUESTA  = 2500
 MAX_TOKENS_RAPIDO     = 380
 MAX_CHARS_PREGUNTA    = 500
@@ -701,7 +701,13 @@ if submit and pregunta_input:
                                 len(resultados), (time.time()-t0)*1000, True)
 
             except Exception as e:
-                st.error(f"ERROR REAL: {e}")
+                err = str(e).lower()
+                if "429" in err or "quota" in err or "exhausted" in err or "rate" in err:
+                    st.error("⏳ Límite de la API de Google alcanzado. Inténtalo en unos minutos.")
+                elif "api_key" in err or "invalid" in err:
+                    st.error("❌ API key de Google no válida. Revisa los Secrets de Streamlit.")
+                else:
+                    st.error(f"Error técnico: {e}")
 
 elif st.session_state.ultima_respuesta:
     st.write("---")
