@@ -628,26 +628,24 @@ if submit and pregunta_input:
                     st.write("---")
                     st.markdown("### 📝 Respuesta:")
 
-                    # Gemini no usa el formato messages de OpenAI
-                    # Convertimos mensajes a texto plano para Gemini
-                    prompt_completo = "\n\n".join([
-                        m["content"] for m in mensajes if m.get("content")
-                    ])
-                    _m = genai.GenerativeModel(
-                        GEMINI_MODEL_PRINCIPAL,
-                        system_instruction=mensajes[0]["content"] if mensajes and mensajes[0]["role"] == "system" else None
-                    )
-                    _historial = [
-                        {"role": "user" if m["role"] == "user" else "model",
-                         "parts": [m["content"]]}
-                        for m in mensajes
-                        if m.get("content") and m["role"] in ("user", "assistant")
-                    ]
-                    if not _historial:
-                        _historial = [{"role": "user", "parts": [prompt_completo]}]
+                    # Gemini: construir prompt unificado desde mensajes
+                    system_msg = ""
+                    user_parts = []
+                    for m in mensajes:
+                        role = m.get("role", "")
+                        txt  = m.get("content", "") or ""
+                        if role == "system":
+                            system_msg = txt
+                        elif role in ("user", "assistant"):
+                            user_parts.append(txt)
 
+                    prompt_unificado = system_msg
+                    if user_parts:
+                        prompt_unificado += "\n\n" + "\n\n".join(user_parts)
+
+                    _m = genai.GenerativeModel(GEMINI_MODEL_PRINCIPAL)
                     stream = _m.generate_content(
-                        _historial,
+                        prompt_unificado,
                         generation_config=genai.GenerationConfig(
                             temperature=0.1,
                             max_output_tokens=MAX_TOKENS_RESPUESTA,
@@ -657,8 +655,11 @@ if submit and pregunta_input:
 
                     def _gen():
                         for chunk in stream:
-                            if chunk.text:
-                                yield chunk.text
+                            try:
+                                if chunk.text:
+                                    yield chunk.text
+                            except Exception:
+                                pass
 
                     texto_final = st.write_stream(_gen())
 
@@ -691,8 +692,10 @@ if submit and pregunta_input:
 
             except Exception as e:
                 err = str(e).lower()
-                if "429" in err or "rate_limit" in err:
+                if "429" in err or "rate_limit" in err or "quota" in err or "exhausted" in err:
                     st.error("⏳ Límite de la API de Google alcanzado. Inténtalo en unos minutos.")
+                elif "api_key" in err or "invalid" in err or "api key" in err:
+                    st.error("❌ API key de Google no válida. Revisa los Secrets de Streamlit.")
                 else:
                     st.error(f"Error técnico: {e}")
 
