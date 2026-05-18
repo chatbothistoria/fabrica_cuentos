@@ -195,6 +195,47 @@ def expandir_y_corregir(pregunta):
     except Exception:
         return pregunta, []
 
+
+# Stopwords españolas para extracción de términos clave
+_STOPWORDS = {
+    "qué","cuál","cuáles","cómo","cuándo","cuánto","cuántos","cuántas",
+    "dónde","quién","quiénes","por","para","con","sin","sobre","entre",
+    "desde","hasta","hacia","ante","bajo","según","durante","mediante",
+    "un","una","unos","unas","el","la","los","las","del","al",
+    "es","son","está","están","ser","tener","tiene","tienen","haber",
+    "hay","puede","pueden","debe","deben","se","me","te","le","nos",
+    "de","en","a","y","o","e","u","que","si","no","más","pero",
+    "yo","tú","él","ella","usted","nosotros","ellos","su","sus",
+    "mi","mis","tu","tus","un","una","lo","le","les",
+    "docente","docentes","alumno","alumna","alumnos","alumnas",
+    "derecho","derechos","tiene","tendrá","podrá","podrán",
+    "favor","hacer","realizar","solicitar","pedir",
+}
+
+def extraer_terminos_clave(pregunta: str) -> list[str]:
+    """Extrae 4-6 términos clave de la pregunta eliminando stopwords.
+    Devuelve también bigramas de términos legales relevantes.
+    """
+    import re
+    # Normalizar
+    texto = pregunta.lower().strip("¿?.,;:")
+    texto = re.sub(r"[¿?.,;:()\[\]{}"'!]", " ", texto)
+    palabras = [p for p in texto.split() if len(p) > 2 and p not in _STOPWORDS]
+
+    terminos = []
+    # Añadir palabras individuales relevantes
+    for p in palabras:
+        if p not in terminos:
+            terminos.append(p)
+
+    # Añadir bigramas de palabras consecutivas
+    for i in range(len(palabras) - 1):
+        bigrama = f"{palabras[i]} {palabras[i+1]}"
+        if bigrama not in terminos:
+            terminos.append(bigrama)
+
+    return terminos[:8]  # máx 8 términos/bigramas
+
 def _qdrant_search_rest(embedding, bloque, threshold=None):
     """Búsqueda semántica via REST API directa.
     Si bloque=None o bloque="general" busca en toda la colección sin filtro.
@@ -221,25 +262,39 @@ def _qdrant_search_rest(embedding, bloque, threshold=None):
     except Exception:
         return []
 
-def _qdrant_text_search_rest(pregunta_texto, bloque):
+def _qdrant_text_search_rest(pregunta_texto, bloque, terminos=None):
     """Búsqueda textual via REST API directa.
+    Busca por términos clave extraídos de la pregunta.
     Si bloque=None o bloque="general" busca en toda la colección.
     """
     try:
         url = f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/scroll"
         headers = {"api-key": QDRANT_API_KEY, "Content-Type": "application/json"}
-        condiciones = [{"key": "contenido", "match": {"text": pregunta_texto}}]
-        if bloque is not None and bloque != "general":
-            condiciones.append({"key": "bloque", "match": {"value": bloque}})
-        payload = {
-            "filter": {"must": condiciones},
-            "limit": 3,
-            "with_payload": True,
-            "with_vector": False,
-        }
-        r = requests.post(url, json=payload, headers=headers, timeout=30)
-        r.raise_for_status()
-        return r.json().get("result", {}).get("points", [])
+        # Usar términos clave si están disponibles, si no usar pregunta completa
+        lista_terminos = terminos if terminos else [pregunta_texto]
+        todos_resultados = []
+        ids_vistos = set()
+
+        for termino in lista_terminos[:5]:  # máx 5 búsquedas
+            condiciones = [{"key": "contenido", "match": {"text": termino}}]
+            if bloque is not None and bloque != "general":
+                condiciones.append({"key": "bloque", "match": {"value": bloque}})
+            payload = {
+                "filter": {"must": condiciones},
+                "limit": 4,
+                "with_payload": True,
+                "with_vector": False,
+            }
+            r = requests.post(url, json=payload, headers=headers, timeout=30)
+            r.raise_for_status()
+            puntos = r.json().get("result", {}).get("points", [])
+            for p in puntos:
+                pid = str(p.get("id", ""))
+                if pid not in ids_vistos:
+                    ids_vistos.add(pid)
+                    todos_resultados.append(p)
+
+        return todos_resultados[:8]
     except Exception:
         return []
 
@@ -250,6 +305,9 @@ def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
     - bloque="general": busca en toda la colección sin filtro (EBEP, permisos, bajas...)
     - otros bloques: busca con filtro + fallback sin filtro si los resultados son pobres
     """
+    # Extraer términos clave para búsqueda keyword
+    terminos_clave = extraer_terminos_clave(pregunta_texto)
+
     # Para nivel GENERAL: buscar en toda la colección sin filtro
     if bloque == "general":
         resultados_v = []
@@ -258,7 +316,7 @@ def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
             resultados_v = hits
             if resultados_v:
                 break
-        resultados_t = _qdrant_text_search_rest(pregunta_texto, None)
+        resultados_t = _qdrant_text_search_rest(pregunta_texto, None, terminos_clave)
 
     else:
         # Niveles 1-3: con filtro de bloque
@@ -279,33 +337,44 @@ def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
                     resultados_v.append(h)
             resultados_v = sorted(resultados_v, key=lambda x: x.get("score", 0), reverse=True)
 
-        # Búsqueda textual
-        resultados_t = _qdrant_text_search_rest(pregunta_texto, bloque)
+        # Búsqueda keyword con términos extraídos
+        resultados_t = _qdrant_text_search_rest(pregunta_texto, bloque, terminos_clave)
 
-    # Fusionar y deduplicar por contenido (evita el mismo artículo 3 veces)
+    # ── Boost: identificar fragmentos que aparecen en AMBAS búsquedas ────────
+    # Estos son casi con certeza los artículos correctos — subirlos al top
+    ids_semanticos = {str(h.get("id", "")) for h in resultados_v}
+    ids_keyword    = {str(r.get("id", "")) for r in resultados_t}
+    ids_en_ambas   = ids_semanticos & ids_keyword
+
+    # Fusionar y deduplicar con boost para resultados cruzados
     vistos_contenido = set()
     ids_vistos = set()
-    combinados = []
+    boost = []      # encontrados en ambas búsquedas → van primero
+    resto = []      # solo en una búsqueda
 
+    # Primero procesar semánticos
     for hit in resultados_v:
         rid = str(hit.get("id", ""))
         payload = hit.get("payload", {})
         contenido = payload.get("contenido", "")
-        # Clave de deduplicación: primeros 120 chars del contenido
         clave = contenido[:120].strip()
         if rid not in ids_vistos and clave not in vistos_contenido:
             ids_vistos.add(rid)
-            if clave:
-                vistos_contenido.add(clave)
-            combinados.append({
+            if clave: vistos_contenido.add(clave)
+            item = {
                 "id":             rid,
                 "contenido":      contenido,
                 "nombre_archivo": payload.get("nombre_archivo", ""),
                 "pagina_num":     payload.get("pagina_num", 0),
                 "bloque":         payload.get("bloque", ""),
                 "similarity":     hit.get("score", 0.0),
-            })
+            }
+            if rid in ids_en_ambas:
+                boost.append(item)
+            else:
+                resto.append(item)
 
+    # Luego añadir los keyword-only
     for record in resultados_t:
         rid = str(record.get("id", ""))
         payload = record.get("payload", {})
@@ -313,17 +382,20 @@ def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
         clave = contenido[:120].strip()
         if rid not in ids_vistos and clave not in vistos_contenido:
             ids_vistos.add(rid)
-            if clave:
-                vistos_contenido.add(clave)
-            combinados.append({
+            if clave: vistos_contenido.add(clave)
+            item = {
                 "id":             rid,
                 "contenido":      contenido,
                 "nombre_archivo": payload.get("nombre_archivo", ""),
                 "pagina_num":     payload.get("pagina_num", 0),
                 "bloque":         payload.get("bloque", ""),
-                "similarity":     1.0,
-            })
+                "similarity":     0.95,  # score alto para keyword matches
+            }
+            # keyword-only siempre van al boost (contienen las palabras exactas)
+            boost.append(item)
 
+    # boost primero, luego resto semántico
+    combinados = boost + resto
     return combinados[:MATCH_COUNT]
 
 def reranquear(pregunta, fragmentos):
