@@ -169,6 +169,10 @@ def validar_input(pregunta):
     return True, ""
 
 def expandir_y_corregir(pregunta):
+    """Reformulación jurídica con Gemini.
+    Si falla por límite de API, usa versión básica sin LLM.
+    """
+    import re
     try:
         _m = genai.GenerativeModel(GEMINI_MODEL_RAPIDO)
         resp = _m.generate_content(
@@ -176,24 +180,26 @@ def expandir_y_corregir(pregunta):
             "Dado el siguiente texto de un docente o familiar:\n"
             "  1. Corrige errores ortográficos\n"
             "  2. Genera 3 reformulaciones MUY DISTINTAS para mejorar la búsqueda en un RAG jurídico:\n"
-            "     - opcion1: reformulación con terminología jurídica exacta del BOE/BOCYL\n"
-            "       (usa: Artículo, párrafo, apartado, días hábiles, consanguinidad, etc.)\n"
-            "     - opcion2: reformulación desde el punto de vista del funcionario docente\n"
-            "       (usa vocabulario administrativo: solicitar, conceder, autorizar, derecho)\n"
-            "     - opcion3: reformulación que mencione el tipo de norma relevante\n"
-            "       (EBEP, LOE, LOMLOE, Decreto, Orden EDU, Resolución, etc.)\n\n"
-            "Responde ÚNICAMENTE con JSON válido:\n"
+            "     - opcion1: terminología jurídica exacta del BOE/BOCYL\n"
+            "       (días hábiles, consanguinidad, afinidad, Artículo, apartado...)\n"
+            "     - opcion2: vocabulario administrativo del funcionario docente\n"
+            "       (solicitar, conceder, autorizar, derecho, permiso retribuido...)\n"
+            "     - opcion3: menciona el tipo de norma relevante\n"
+            "       (EBEP, LOE, LOMLOE, Decreto, Orden EDU, Resolución BOCYL...)\n\n"
+            "Responde ÚNICAMENTE con JSON válido sin texto adicional:\n"
             '{"corregida": "texto corregido", "reformulaciones": ["boe_bocyl", "funcionario", "norma"]}\n\n'
             f"Texto: {pregunta}",
-            generation_config=genai.GenerationConfig(temperature=0.2, max_output_tokens=MAX_TOKENS_RAPIDO)
+            generation_config=genai.GenerationConfig(temperature=0.2, max_output_tokens=350)
         )
-        data = _parse_json(resp.text,
-                           {"corregida": pregunta, "reformulaciones": []})
+        data = _parse_json(resp.text, {"corregida": pregunta, "reformulaciones": []})
         corregida = data.get("corregida") or pregunta
         reformulaciones = [r for r in (data.get("reformulaciones") or []) if r]
         return corregida, reformulaciones
     except Exception:
-        return pregunta, []
+        # Fallback sin LLM si Gemini falla
+        corregida = pregunta.strip()
+        base = re.sub(r"[¿?¡!]", "", corregida).strip()
+        return corregida, [base]
 
 
 # Stopwords españolas para extracción de términos clave
@@ -399,26 +405,30 @@ def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
     return combinados[:MATCH_COUNT]
 
 def reranquear(pregunta, fragmentos):
+    """Reranking con Gemini. Si falla, devuelve el orden original
+    (ya optimizado por la búsqueda híbrida semántica+keyword).
+    """
     if len(fragmentos) <= 2:
         return fragmentos
     try:
         lista_txt = "\n".join([
-            f"[{i+1}] {f.get('contenido','')[:250]}"
-            for i, f in enumerate(fragmentos)
+            f"[{i+1}] {f.get('contenido','')[:200]}"
+            for i, f in enumerate(fragmentos[:8])
         ])
         _m = genai.GenerativeModel(GEMINI_MODEL_RAPIDO)
         resp = _m.generate_content(
-            f'Pregunta: "{pregunta}"\n\n'
-            "Puntúa del 1 al 5 la relevancia de cada fragmento.\n"
-            f'Responde SOLO con JSON: {{"puntuaciones": [n, n, ...]}}\n\n'
-            f"Fragmentos:\n{lista_txt}",
-            generation_config=genai.GenerationConfig(temperature=0, max_output_tokens=80)
+            f'Pregunta: "{pregunta}"\n'
+            "Puntúa del 1-5 la relevancia de cada fragmento.\n"
+            f'JSON SOLO: {{"p": [n,n,...]}}\n\nFragmentos:\n{lista_txt}',
+            generation_config=genai.GenerationConfig(temperature=0, max_output_tokens=60)
         )
-        data = _parse_json(resp.text, {"puntuaciones": []})
-        punts = data.get("puntuaciones", [])
-        if len(punts) == len(fragmentos):
-            pares = sorted(zip(fragmentos, punts), key=lambda x: x[1], reverse=True)
-            return [f for f, _ in pares]
+        data = _parse_json(resp.text, {"p": []})
+        punts = data.get("p", [])
+        n = min(len(punts), len(fragmentos))
+        if n >= 2:
+            pares = sorted(zip(fragmentos[:n], punts[:n]),
+                           key=lambda x: x[1], reverse=True)
+            return [f for f, _ in pares] + fragmentos[n:]
     except Exception:
         pass
     return fragmentos
