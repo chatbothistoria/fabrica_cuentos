@@ -9,8 +9,8 @@ from fpdf import FPDF
 # =============================================================================
 # CONFIGURACIÓN CENTRAL
 # =============================================================================
-GEMINI_MODEL_PRINCIPAL = "gemini-1.5-flash"
-GEMINI_MODEL_RAPIDO    = "gemini-1.5-flash"
+GEMINI_MODEL_PRINCIPAL = "gemini-1.5-flash-latest"
+GEMINI_MODEL_RAPIDO    = "gemini-1.5-flash-latest"
 MAX_TOKENS_RESPUESTA  = 2500
 MAX_TOKENS_RAPIDO     = 380
 MAX_CHARS_PREGUNTA    = 500
