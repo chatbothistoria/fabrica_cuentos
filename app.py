@@ -1,7 +1,7 @@
 import streamlit as st
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
-from groq import Groq
+import google.generativeai as genai
 import csv, os, json, textwrap, time, requests
 import numpy as np
 from fpdf import FPDF
@@ -9,8 +9,8 @@ from fpdf import FPDF
 # =============================================================================
 # CONFIGURACIÓN CENTRAL
 # =============================================================================
-GROQ_MODEL_PRINCIPAL  = "llama-3.3-70b-versatile"
-GROQ_MODEL_RAPIDO     = "llama-3.1-8b-instant"
+GEMINI_MODEL_PRINCIPAL = "gemini-2.0-flash"
+GEMINI_MODEL_RAPIDO    = "gemini-2.0-flash"
 MAX_TOKENS_RESPUESTA  = 2500
 MAX_TOKENS_RAPIDO     = 380
 MAX_CHARS_PREGUNTA    = 500
@@ -86,7 +86,7 @@ def generar_pdf(lista_interacciones, titulo="Normativa Educativa"):
 # =============================================================================
 SUPABASE_URL  = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY  = st.secrets["SUPABASE_KEY"]
-GROQ_API_KEY  = st.secrets["GROQ_API_KEY"]
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 QDRANT_URL    = st.secrets["QDRANT_URL"]
 QDRANT_API_KEY = st.secrets["QDRANT_API_KEY"]
 
@@ -137,7 +137,7 @@ def cargar_enlaces():
 
 supabase     = init_supabase()
 model        = load_model()
-groq_client  = Groq(api_key=GROQ_API_KEY)
+genai.configure(api_key=GOOGLE_API_KEY)
 enlaces      = cargar_enlaces()
 if not enlaces:
     st.sidebar.warning("⚠️ enlaces.csv no encontrado — las fuentes no tendrán enlace.")
@@ -170,27 +170,24 @@ def validar_input(pregunta):
 
 def expandir_y_corregir(pregunta):
     try:
-        resp = groq_client.chat.completions.create(
-            model=GROQ_MODEL_RAPIDO,
-            messages=[{"role": "user", "content": (
-                "Eres un experto en normativa educativa y derecho administrativo español.\n"
-                "Dado el siguiente texto de un docente o familiar:\n"
-                "  1. Corrige errores ortográficos\n"
-                "  2. Genera 3 reformulaciones MUY DISTINTAS para mejorar la búsqueda en un RAG jurídico:\n"
-                "     - opcion1: reformulación con terminología jurídica exacta del BOE/BOCYL\n"
-                "       (usa: Artículo, párrafo, apartado, días hábiles, consanguinidad, etc.)\n"
-                "     - opcion2: reformulación desde el punto de vista del funcionario docente\n"
-                "       (usa vocabulario administrativo: solicitar, conceder, autorizar, derecho)\n"
-                "     - opcion3: reformulación que mencione el tipo de norma relevante\n"
-                "       (EBEP, LOE, LOMLOE, Decreto, Orden EDU, Resolución, etc.)\n\n"
-                "Responde ÚNICAMENTE con JSON válido:\n"
-                '{"corregida": "texto corregido", "reformulaciones": ["boe_bocyl", "funcionario", "norma"]}\n\n'
-                f"Texto: {pregunta}"
-            )}],
-            temperature=0.2,
-            max_tokens=MAX_TOKENS_RAPIDO,
+        _m = genai.GenerativeModel(GEMINI_MODEL_RAPIDO)
+        resp = _m.generate_content(
+            "Eres un experto en normativa educativa y derecho administrativo español.\n"
+            "Dado el siguiente texto de un docente o familiar:\n"
+            "  1. Corrige errores ortográficos\n"
+            "  2. Genera 3 reformulaciones MUY DISTINTAS para mejorar la búsqueda en un RAG jurídico:\n"
+            "     - opcion1: reformulación con terminología jurídica exacta del BOE/BOCYL\n"
+            "       (usa: Artículo, párrafo, apartado, días hábiles, consanguinidad, etc.)\n"
+            "     - opcion2: reformulación desde el punto de vista del funcionario docente\n"
+            "       (usa vocabulario administrativo: solicitar, conceder, autorizar, derecho)\n"
+            "     - opcion3: reformulación que mencione el tipo de norma relevante\n"
+            "       (EBEP, LOE, LOMLOE, Decreto, Orden EDU, Resolución, etc.)\n\n"
+            "Responde ÚNICAMENTE con JSON válido:\n"
+            '{"corregida": "texto corregido", "reformulaciones": ["boe_bocyl", "funcionario", "norma"]}\n\n'
+            f"Texto: {pregunta}",
+            generation_config=genai.GenerationConfig(temperature=0.2, max_output_tokens=MAX_TOKENS_RAPIDO)
         )
-        data = _parse_json(resp.choices[0].message.content,
+        data = _parse_json(resp.text,
                            {"corregida": pregunta, "reformulaciones": []})
         corregida = data.get("corregida") or pregunta
         reformulaciones = [r for r in (data.get("reformulaciones") or []) if r]
@@ -337,18 +334,15 @@ def reranquear(pregunta, fragmentos):
             f"[{i+1}] {f.get('contenido','')[:250]}"
             for i, f in enumerate(fragmentos)
         ])
-        resp = groq_client.chat.completions.create(
-            model=GROQ_MODEL_RAPIDO,
-            messages=[{"role": "user", "content": (
-                f'Pregunta: "{pregunta}"\n\n'
-                "Puntúa del 1 al 5 la relevancia de cada fragmento.\n"
-                f'Responde SOLO con JSON: {{"puntuaciones": [n, n, ...]}}\n\n'
-                f"Fragmentos:\n{lista_txt}"
-            )}],
-            temperature=0,
-            max_tokens=80,
+        _m = genai.GenerativeModel(GEMINI_MODEL_RAPIDO)
+        resp = _m.generate_content(
+            f'Pregunta: "{pregunta}"\n\n'
+            "Puntúa del 1 al 5 la relevancia de cada fragmento.\n"
+            f'Responde SOLO con JSON: {{"puntuaciones": [n, n, ...]}}\n\n'
+            f"Fragmentos:\n{lista_txt}",
+            generation_config=genai.GenerationConfig(temperature=0, max_output_tokens=80)
         )
-        data = _parse_json(resp.choices[0].message.content, {"puntuaciones": []})
+        data = _parse_json(resp.text, {"puntuaciones": []})
         punts = data.get("puntuaciones", [])
         if len(punts) == len(fragmentos):
             pares = sorted(zip(fragmentos, punts), key=lambda x: x[1], reverse=True)
@@ -562,19 +556,37 @@ if submit and pregunta_input:
                     st.write("---")
                     st.markdown("### 📝 Respuesta:")
 
-                    stream = groq_client.chat.completions.create(
-                        model=GROQ_MODEL_PRINCIPAL,
-                        messages=mensajes,
-                        temperature=0.1,
-                        max_tokens=MAX_TOKENS_RESPUESTA,
+                    # Gemini no usa el formato messages de OpenAI
+                    # Convertimos mensajes a texto plano para Gemini
+                    prompt_completo = "\n\n".join([
+                        m["content"] for m in mensajes if m.get("content")
+                    ])
+                    _m = genai.GenerativeModel(
+                        GEMINI_MODEL_PRINCIPAL,
+                        system_instruction=mensajes[0]["content"] if mensajes and mensajes[0]["role"] == "system" else None
+                    )
+                    _historial = [
+                        {"role": "user" if m["role"] == "user" else "model",
+                         "parts": [m["content"]]}
+                        for m in mensajes
+                        if m.get("content") and m["role"] in ("user", "assistant")
+                    ]
+                    if not _historial:
+                        _historial = [{"role": "user", "parts": [prompt_completo]}]
+
+                    stream = _m.generate_content(
+                        _historial,
+                        generation_config=genai.GenerationConfig(
+                            temperature=0.1,
+                            max_output_tokens=MAX_TOKENS_RESPUESTA,
+                        ),
                         stream=True,
                     )
 
                     def _gen():
                         for chunk in stream:
-                            delta = chunk.choices[0].delta.content
-                            if delta:
-                                yield delta
+                            if chunk.text:
+                                yield chunk.text
 
                     texto_final = st.write_stream(_gen())
 
@@ -608,7 +620,7 @@ if submit and pregunta_input:
             except Exception as e:
                 err = str(e).lower()
                 if "429" in err or "rate_limit" in err:
-                    st.error("⏳ Límite diario de Groq alcanzado. Inténtalo mañana.")
+                    st.error("⏳ Límite de la API de Google alcanzado. Inténtalo en unos minutos.")
                 else:
                     st.error(f"Error técnico: {e}")
 

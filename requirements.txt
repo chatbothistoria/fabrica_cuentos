@@ -2,6 +2,6 @@ streamlit
 supabase
 sentence-transformers
 torch
-groq
+google-generativeai
 fpdf2
 numpy
