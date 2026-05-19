@@ -11,12 +11,12 @@ from fpdf import FPDF
 # =============================================================================
 GROQ_MODEL_PRINCIPAL  = "llama-3.3-70b-versatile"
 GROQ_MODEL_RAPIDO     = "llama-3.1-8b-instant"
-MAX_TOKENS_RESPUESTA  = 2500
+MAX_TOKENS_RESPUESTA  = 1200
 MAX_TOKENS_RAPIDO     = 380
 MAX_CHARS_PREGUNTA    = 500
 MATCH_THRESHOLD_ALTO  = 0.40
 MATCH_THRESHOLD_BAJO  = 0.25
-MATCH_COUNT           = 15
+MATCH_COUNT           = 8
 HISTORIAL_TURNOS      = 3
 COLLECTION_NAME       = "normativa"
 
@@ -169,34 +169,14 @@ def validar_input(pregunta):
     return True, ""
 
 def expandir_y_corregir(pregunta):
-    try:
-        resp = groq_client.chat.completions.create(
-            model=GROQ_MODEL_RAPIDO,
-            messages=[{"role": "user", "content": (
-                "Eres un experto en normativa educativa y derecho administrativo español.\n"
-                "Dado el siguiente texto de un docente o familiar:\n"
-                "  1. Corrige errores ortográficos\n"
-                "  2. Genera 3 reformulaciones MUY DISTINTAS para mejorar la búsqueda en un RAG jurídico:\n"
-                "     - opcion1: reformulación con terminología jurídica exacta del BOE/BOCYL\n"
-                "       (usa: Artículo, párrafo, apartado, días hábiles, consanguinidad, etc.)\n"
-                "     - opcion2: reformulación desde el punto de vista del funcionario docente\n"
-                "       (usa vocabulario administrativo: solicitar, conceder, autorizar, derecho)\n"
-                "     - opcion3: reformulación que mencione el tipo de norma relevante\n"
-                "       (EBEP, LOE, LOMLOE, Decreto, Orden EDU, Resolución, etc.)\n\n"
-                "Responde ÚNICAMENTE con JSON válido:\n"
-                '{"corregida": "texto corregido", "reformulaciones": ["boe_bocyl", "funcionario", "norma"]}\n\n'
-                f"Texto: {pregunta}"
-            )}],
-            temperature=0.2,
-            max_tokens=MAX_TOKENS_RAPIDO,
-        )
-        data = _parse_json(resp.choices[0].message.content,
-                           {"corregida": pregunta, "reformulaciones": []})
-        corregida = data.get("corregida") or pregunta
-        reformulaciones = [r for r in (data.get("reformulaciones") or []) if r]
-        return corregida, reformulaciones
-    except Exception:
-        return pregunta, []
+    """Sin LLM para ahorrar tokens de Groq.
+    La búsqueda híbrida semántica+keyword ya garantiza buen retrieval.
+    """
+    import re
+    corregida = pregunta.strip()
+    # Limpiar signos de interrogación y espacios extra
+    base = re.sub(r"[¿?¡!]", "", corregida).strip()
+    return corregida, [base]
 
 
 # Stopwords españolas para extracción de términos clave
