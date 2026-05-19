@@ -1,7 +1,7 @@
 import streamlit as st
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
-from groq import Groq
+import requests as _requests
 import csv, os, json, textwrap, time, requests
 import numpy as np
 from fpdf import FPDF
@@ -9,8 +9,8 @@ from fpdf import FPDF
 # =============================================================================
 # CONFIGURACIÓN CENTRAL
 # =============================================================================
-GROQ_MODEL_PRINCIPAL  = "llama-3.3-70b-versatile"
-GROQ_MODEL_RAPIDO     = "llama-3.1-8b-instant"
+CEREBRAS_MODEL = "qwen-3-235b-a22b-instruct-2507"
+CEREBRAS_URL   = "https://api.cerebras.ai/v1/chat/completions"
 MAX_TOKENS_RESPUESTA  = 1200
 MAX_TOKENS_RAPIDO     = 380
 MAX_CHARS_PREGUNTA    = 500
@@ -86,7 +86,7 @@ def generar_pdf(lista_interacciones, titulo="Normativa Educativa"):
 # =============================================================================
 SUPABASE_URL  = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY  = st.secrets["SUPABASE_KEY"]
-GROQ_API_KEY  = st.secrets["GROQ_API_KEY"]
+CEREBRAS_API_KEY = st.secrets["CEREBRAS_API_KEY"]
 QDRANT_URL    = st.secrets["QDRANT_URL"]
 QDRANT_API_KEY = st.secrets["QDRANT_API_KEY"]
 
@@ -137,7 +137,7 @@ def cargar_enlaces():
 
 supabase     = init_supabase()
 model        = load_model()
-groq_client  = Groq(api_key=GROQ_API_KEY)
+# Cerebras usa requests directamente — sin cliente especial
 enlaces      = cargar_enlaces()
 if not enlaces:
     st.sidebar.warning("⚠️ enlaces.csv no encontrado — las fuentes no tendrán enlace.")
@@ -590,21 +590,19 @@ if submit and pregunta_input:
                     st.write("---")
                     st.markdown("### 📝 Respuesta:")
 
-                    stream = groq_client.chat.completions.create(
-                        model=GROQ_MODEL_PRINCIPAL,
-                        messages=mensajes,
-                        temperature=0.1,
-                        max_tokens=MAX_TOKENS_RESPUESTA,
-                        stream=True,
+                    _resp = _requests.post(
+                        CEREBRAS_URL,
+                        headers={"Authorization": f"Bearer {CEREBRAS_API_KEY}",
+                                 "Content-Type": "application/json"},
+                        json={"model": CEREBRAS_MODEL,
+                              "messages": mensajes,
+                              "temperature": 0.1,
+                              "max_tokens": MAX_TOKENS_RESPUESTA},
+                        timeout=60
                     )
-
-                    def _gen():
-                        for chunk in stream:
-                            delta = chunk.choices[0].delta.content
-                            if delta:
-                                yield delta
-
-                    texto_final = st.write_stream(_gen())
+                    _resp.raise_for_status()
+                    texto_final = _resp.json()["choices"][0]["message"]["content"]
+                    st.markdown(texto_final)
 
                     fuentes_u  = list(dict.fromkeys(links_screen))
                     fuentes_up = list(dict.fromkeys(fuentes_pdf))
