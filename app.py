@@ -656,9 +656,9 @@ if submit and pregunta_input:
             except Exception as e:
                 err = str(e).lower()
                 if "429" in err or "quota" in err or "exhausted" in err or "rate" in err:
-                    st.error("⏳ Límite de la API de Google alcanzado. Inténtalo en unos minutos.")
+                    st.error("⏳ Límite diario de Groq alcanzado. Inténtalo mañana.")
                 elif "api_key" in err or "invalid" in err:
-                    st.error("❌ API key de Google no válida. Revisa los Secrets de Streamlit.")
+                    st.error("❌ Error en la API de Groq. Revisa tu API key en los Secrets de Streamlit.")
                 else:
                     st.error(f"Error técnico: {e}")
 
