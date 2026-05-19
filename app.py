@@ -1,7 +1,7 @@
 import streamlit as st
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
-import google.generativeai as genai
+from groq import Groq
 import csv, os, json, textwrap, time, requests
 import numpy as np
 from fpdf import FPDF
@@ -9,8 +9,8 @@ from fpdf import FPDF
 # =============================================================================
 # CONFIGURACIÓN CENTRAL
 # =============================================================================
-GEMINI_MODEL_PRINCIPAL = "gemini-1.5-flash-latest"
-GEMINI_MODEL_RAPIDO    = "gemini-1.5-flash-latest"
+GROQ_MODEL_PRINCIPAL  = "llama-3.3-70b-versatile"
+GROQ_MODEL_RAPIDO     = "llama-3.1-8b-instant"
 MAX_TOKENS_RESPUESTA  = 2500
 MAX_TOKENS_RAPIDO     = 380
 MAX_CHARS_PREGUNTA    = 500
@@ -86,7 +86,7 @@ def generar_pdf(lista_interacciones, titulo="Normativa Educativa"):
 # =============================================================================
 SUPABASE_URL  = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY  = st.secrets["SUPABASE_KEY"]
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+GROQ_API_KEY  = st.secrets["GROQ_API_KEY"]
 QDRANT_URL    = st.secrets["QDRANT_URL"]
 QDRANT_API_KEY = st.secrets["QDRANT_API_KEY"]
 
@@ -137,7 +137,7 @@ def cargar_enlaces():
 
 supabase     = init_supabase()
 model        = load_model()
-genai.configure(api_key=GOOGLE_API_KEY)
+groq_client  = Groq(api_key=GROQ_API_KEY)
 enlaces      = cargar_enlaces()
 if not enlaces:
     st.sidebar.warning("⚠️ enlaces.csv no encontrado — las fuentes no tendrán enlace.")
@@ -169,37 +169,34 @@ def validar_input(pregunta):
     return True, ""
 
 def expandir_y_corregir(pregunta):
-    """Reformulación jurídica con Gemini.
-    Si falla por límite de API, usa versión básica sin LLM.
-    """
-    import re
     try:
-        _m = genai.GenerativeModel(GEMINI_MODEL_RAPIDO)
-        resp = _m.generate_content(
-            "Eres un experto en normativa educativa y derecho administrativo español.\n"
-            "Dado el siguiente texto de un docente o familiar:\n"
-            "  1. Corrige errores ortográficos\n"
-            "  2. Genera 3 reformulaciones MUY DISTINTAS para mejorar la búsqueda en un RAG jurídico:\n"
-            "     - opcion1: terminología jurídica exacta del BOE/BOCYL\n"
-            "       (días hábiles, consanguinidad, afinidad, Artículo, apartado...)\n"
-            "     - opcion2: vocabulario administrativo del funcionario docente\n"
-            "       (solicitar, conceder, autorizar, derecho, permiso retribuido...)\n"
-            "     - opcion3: menciona el tipo de norma relevante\n"
-            "       (EBEP, LOE, LOMLOE, Decreto, Orden EDU, Resolución BOCYL...)\n\n"
-            "Responde ÚNICAMENTE con JSON válido sin texto adicional:\n"
-            '{"corregida": "texto corregido", "reformulaciones": ["boe_bocyl", "funcionario", "norma"]}\n\n'
-            f"Texto: {pregunta}",
-            generation_config=genai.GenerationConfig(temperature=0.2, max_output_tokens=350)
+        resp = groq_client.chat.completions.create(
+            model=GROQ_MODEL_RAPIDO,
+            messages=[{"role": "user", "content": (
+                "Eres un experto en normativa educativa y derecho administrativo español.\n"
+                "Dado el siguiente texto de un docente o familiar:\n"
+                "  1. Corrige errores ortográficos\n"
+                "  2. Genera 3 reformulaciones MUY DISTINTAS para mejorar la búsqueda en un RAG jurídico:\n"
+                "     - opcion1: reformulación con terminología jurídica exacta del BOE/BOCYL\n"
+                "       (usa: Artículo, párrafo, apartado, días hábiles, consanguinidad, etc.)\n"
+                "     - opcion2: reformulación desde el punto de vista del funcionario docente\n"
+                "       (usa vocabulario administrativo: solicitar, conceder, autorizar, derecho)\n"
+                "     - opcion3: reformulación que mencione el tipo de norma relevante\n"
+                "       (EBEP, LOE, LOMLOE, Decreto, Orden EDU, Resolución, etc.)\n\n"
+                "Responde ÚNICAMENTE con JSON válido:\n"
+                '{"corregida": "texto corregido", "reformulaciones": ["boe_bocyl", "funcionario", "norma"]}\n\n'
+                f"Texto: {pregunta}"
+            )}],
+            temperature=0.2,
+            max_tokens=MAX_TOKENS_RAPIDO,
         )
-        data = _parse_json(resp.text, {"corregida": pregunta, "reformulaciones": []})
+        data = _parse_json(resp.choices[0].message.content,
+                           {"corregida": pregunta, "reformulaciones": []})
         corregida = data.get("corregida") or pregunta
         reformulaciones = [r for r in (data.get("reformulaciones") or []) if r]
         return corregida, reformulaciones
     except Exception:
-        # Fallback sin LLM si Gemini falla
-        corregida = pregunta.strip()
-        base = re.sub(r"[¿?¡!]", "", corregida).strip()
-        return corregida, [base]
+        return pregunta, []
 
 
 # Stopwords españolas para extracción de términos clave
@@ -405,32 +402,7 @@ def buscar_normativa_hibrida(embedding, pregunta_texto, bloque):
     return combinados[:MATCH_COUNT]
 
 def reranquear(pregunta, fragmentos):
-    """Reranking con Gemini. Si falla, devuelve el orden original
-    (ya optimizado por la búsqueda híbrida semántica+keyword).
-    """
-    if len(fragmentos) <= 2:
-        return fragmentos
-    try:
-        lista_txt = "\n".join([
-            f"[{i+1}] {f.get('contenido','')[:200]}"
-            for i, f in enumerate(fragmentos[:8])
-        ])
-        _m = genai.GenerativeModel(GEMINI_MODEL_RAPIDO)
-        resp = _m.generate_content(
-            f'Pregunta: "{pregunta}"\n'
-            "Puntúa del 1-5 la relevancia de cada fragmento.\n"
-            f'JSON SOLO: {{"p": [n,n,...]}}\n\nFragmentos:\n{lista_txt}',
-            generation_config=genai.GenerationConfig(temperature=0, max_output_tokens=60)
-        )
-        data = _parse_json(resp.text, {"p": []})
-        punts = data.get("p", [])
-        n = min(len(punts), len(fragmentos))
-        if n >= 2:
-            pares = sorted(zip(fragmentos[:n], punts[:n]),
-                           key=lambda x: x[1], reverse=True)
-            return [f for f, _ in pares] + fragmentos[n:]
-    except Exception:
-        pass
+    """Los fragmentos ya vienen ordenados por la búsqueda híbrida."""
     return fragmentos
 
 def construir_contexto_xml(fragmentos, enlaces_dict):
@@ -638,38 +610,19 @@ if submit and pregunta_input:
                     st.write("---")
                     st.markdown("### 📝 Respuesta:")
 
-                    # Gemini: construir prompt unificado desde mensajes
-                    system_msg = ""
-                    user_parts = []
-                    for m in mensajes:
-                        role = m.get("role", "")
-                        txt  = m.get("content", "") or ""
-                        if role == "system":
-                            system_msg = txt
-                        elif role in ("user", "assistant"):
-                            user_parts.append(txt)
-
-                    prompt_unificado = system_msg
-                    if user_parts:
-                        prompt_unificado += "\n\n" + "\n\n".join(user_parts)
-
-                    _m = genai.GenerativeModel(GEMINI_MODEL_PRINCIPAL)
-                    stream = _m.generate_content(
-                        prompt_unificado,
-                        generation_config=genai.GenerationConfig(
-                            temperature=0.1,
-                            max_output_tokens=MAX_TOKENS_RESPUESTA,
-                        ),
+                    stream = groq_client.chat.completions.create(
+                        model=GROQ_MODEL_PRINCIPAL,
+                        messages=mensajes,
+                        temperature=0.1,
+                        max_tokens=MAX_TOKENS_RESPUESTA,
                         stream=True,
                     )
 
                     def _gen():
                         for chunk in stream:
-                            try:
-                                if chunk.text:
-                                    yield chunk.text
-                            except Exception:
-                                pass
+                            delta = chunk.choices[0].delta.content
+                            if delta:
+                                yield delta
 
                     texto_final = st.write_stream(_gen())
 
