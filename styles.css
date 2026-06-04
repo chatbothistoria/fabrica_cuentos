@@ -40,21 +40,21 @@ img {
   align-items: center;
 }
 
-/* Imagen ligera en móvil */
+/* Imagen optimizada móvil */
 @media (max-width: 768px) {
   .hero {
     background-image: url('../assets/background-mobile.webp');
   }
 }
 
-/* Overlay SIN blur (mejor rendimiento) */
+/* Overlay ligero */
 .overlay {
   position: absolute;
   inset: 0;
   background: rgba(245, 241, 234, 0.9);
 }
 
-/* CONTENIDO */
+/* Content */
 .content {
   position: relative;
   z-index: 2;
@@ -66,7 +66,7 @@ img {
   will-change: opacity, transform;
 }
 
-/* Quitar animación en móvil */
+/* Sin animación en móvil */
 @media (max-width: 768px) {
   .content {
     animation: none;
@@ -76,10 +76,10 @@ img {
 /* Logo */
 .logo {
   width: 100px;
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
 }
 
-/* H1 (branding elegante) */
+/* H1 branding */
 .intro h1 {
   font-family: 'Inter', sans-serif;
   font-size: clamp(0.9rem, 2vw, 1.1rem);
@@ -90,7 +90,7 @@ img {
   color: var(--sage);
   opacity: 0.85;
 
-  margin-bottom: 1rem;
+  margin-bottom: 3.5rem;
 }
 
 /* Línea decorativa */
@@ -100,19 +100,21 @@ img {
   width: 40px;
   height: 1px;
   background: var(--gold);
-  margin: 8px auto 0 auto;
+  margin: 8px auto 0;
   opacity: 0.6;
 }
 
-/* Título principal */
+/* H2 principal */
 h2 {
   font-family: 'Playfair Display', serif;
   font-size: clamp(3rem, 8vw, 5.5rem);
   color: var(--sage);
   letter-spacing: 4px;
+
+  margin-bottom: 1rem;
 }
 
-/* Texto */
+/* Textos */
 .subtitle {
   font-size: 1.3rem;
   margin-bottom: 1rem;
@@ -124,6 +126,7 @@ h2 {
   color: #444;
 }
 
+/* Separador */
 .separator {
   width: 100px;
   height: 1px;
@@ -139,7 +142,7 @@ h2 {
   margin-bottom: 1rem;
 }
 
-/* FORMULARIO */
+/* Form */
 .notify {
   margin-top: 2rem;
   display: flex;
