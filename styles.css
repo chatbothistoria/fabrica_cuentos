@@ -1,0 +1,165 @@
+:root {
+  --sage: #8FAF9A;
+  --beige: #F5F1EA;
+  --gold: #C9B27E;
+  --text: #3D3D3D;
+}
+
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Accesibilidad */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* Base */
+body {
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  color: var(--text);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* HERO */
+.hero {
+  position: relative;
+  min-height: 100vh;
+
+  background-image: url('../assets/background.webp');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Imagen optimizada móvil */
+@media (max-width: 768px) {
+  .hero {
+    background-image: url('../assets/background-mobile.webp');
+  }
+}
+
+/* Overlay optimizado (sin blur pesado) */
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(245, 241, 234, 0.9);
+}
+
+/* CONTENT */
+.content {
+  position: relative;
+  z-index: 2;
+  max-width: 800px;
+  padding: 2rem;
+  text-align: center;
+
+  animation: fadeIn 1.2s ease;
+  will-change: opacity, transform;
+}
+
+/* Desactivar animación en móvil */
+@media (max-width: 768px) {
+  .content {
+    animation: none;
+  }
+}
+
+/* Logo */
+.logo {
+  width: 100px;
+  margin-bottom: 2rem;
+}
+
+/* Typography */
+h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(3rem, 8vw, 5.5rem);
+  color: var(--sage);
+  letter-spacing: 4px;
+}
+
+.subtitle {
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  color: #2f2f2f;
+}
+
+.description {
+  line-height: 1.9;
+  color: #444;
+}
+
+.separator {
+  width: 100px;
+  height: 1px;
+  background: var(--gold);
+  margin: 2rem auto;
+}
+
+.coming-soon {
+  color: var(--gold);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+/* FORMULARIO */
+.notify {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.notify input {
+  padding: 0.7rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 30px;
+  min-width: 220px;
+  font-family: 'Inter', sans-serif;
+}
+
+.notify button {
+  padding: 0.7rem 1.2rem;
+  border: none;
+  background: var(--sage);
+  color: white;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.notify button:hover {
+  background: #789c86;
+}
+
+/* Animación */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
