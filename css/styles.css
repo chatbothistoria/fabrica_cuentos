@@ -1,0 +1,14 @@
+
+:root{--sage:#8FAF9A;--beige:#F5F1EA;--gold:#C9B27E;--text:#3D3D3D;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh}
+.hero{position:relative;min-height:100vh;background:url('../assets/background.webp') center/cover no-repeat;display:flex;justify-content:center;align-items:center}
+.overlay{position:absolute;inset:0;background:rgba(245,241,234,.86);backdrop-filter:blur(2px)}
+.content{position:relative;z-index:2;max-width:800px;padding:2rem;text-align:center}
+.logo{width:100px;margin-bottom:2rem}
+h1{font-family:serif;font-size:clamp(3rem,8vw,5.5rem);color:var(--sage);letter-spacing:4px}
+.subtitle,.description,.coming-soon{font-family:Arial,sans-serif}
+.subtitle{font-size:1.3rem;margin-bottom:1rem;color:var(--text)}
+.description{line-height:1.9;color:#555}
+.separator{width:120px;height:2px;background:var(--gold);margin:2rem auto}
+.coming-soon{color:var(--gold);letter-spacing:3px;text-transform:uppercase}
